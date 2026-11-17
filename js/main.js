@@ -265,7 +265,11 @@ function closeModal() { $('#modal').classList.add('hidden'); }
 function titleScreen() {
   phase = 'title';
   const saved = Game.load();
-  const grid = CHAMPS.map(c => `<img src="${thumbnail(c.id)}" alt="${c.name}">`).join('');
+  // Columns = classes, rows = origins.
+  const clsOrder = Object.keys(CLASSES), orgOrder = Object.keys(ORIGINS);
+  const grid = clsOrder.map(k => `<div class="gh">${CLASSES[k].icon}</div>`).join('')
+    + orgOrder.map(o => clsOrder.map(k => { const c = CHAMPS.find(x => x.cls === k && x.origin === o);
+      return `<img src="${thumbnail(c.id)}" alt="${c.name}" title="${c.name}">`; }).join('')).join('');
   modal(`<div class="panel"><h1>FOURFOLD</h1><p>Four champions. Twelve fights. One gauntlet.</p>
     <div class="champgrid">${grid}</div>
     ${saved ? `<button class="btn primary" data-act="continue-run">Continue Run (fight ${saved.fight})</button>` : ''}

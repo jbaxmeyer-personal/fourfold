@@ -61,12 +61,13 @@ export async function loadModels(onProgress) {
       res();
     }, undefined, rej);
   })));
-  // Normalise scale once per source model.
-  for (const scene of Object.values(sources)) {
-    scene.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(scene);
-    scene.userData.scale = TARGET_HEIGHT / Math.max(0.01, box.max.y - box.min.y);
-  }
+  // KayKit characters share one scale, so measure the knight's body (no props) and use that for all.
+  const knight = sources.knight;
+  knight.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  knight.traverse(o => { if (o.isMesh && !PROPS.has(o.name)) box.expandByObject(o); });
+  const scale = TARGET_HEIGHT / Math.max(0.01, box.max.y - box.min.y);
+  for (const scene of Object.values(sources)) scene.userData.scale = scale;
 }
 
 // Build an animated character for a champion. Returns a Character.

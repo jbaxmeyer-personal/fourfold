@@ -437,7 +437,7 @@ export function thumbnail(champId) {
     scene.add(new THREE.HemisphereLight(0xdde8ff, 0x403050, 1.6));
     const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(2, 4, 5); scene.add(d);
     const cam = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
-    cam.position.set(1.2, 1.5, 3.6); cam.lookAt(0, 0.82, 0);
+    cam.position.set(1.3, 1.6, 4.0); cam.lookAt(0, 0.9, 0);
     thumbR = { r, scene, cam };
   }
   const { r, scene, cam } = thumbR;
