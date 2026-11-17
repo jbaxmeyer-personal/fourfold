@@ -144,6 +144,12 @@ export class Battle {
 
       // Targeting
       if (f.tauntBy && f.tauntBy.alive) f.target = f.tauntBy;
+      else if (f.cls === 'fighter') {
+        // Peel: fighters hunt down enemy assassins that have dived into their half of the board.
+        const mySide = f.side === 'player' ? 1 : -1;
+        const divers = this.enemies(f).filter(e => e.cls === 'assassin' && !e.leap && e.z * mySide > 0);
+        if (divers.length && !(f.target && f.target.alive && divers.includes(f.target))) f.target = this.nearest(f, divers);
+      }
       if (!f.target || !f.target.alive) f.target = this.nearest(f, this.enemies(f));
       const t = f.target;
       if (!t) continue;

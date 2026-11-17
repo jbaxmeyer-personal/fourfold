@@ -11,7 +11,7 @@ export const CLASSES = {
   fighter: {
     name: 'Fighter', icon: '⚔️', role: 'Frontline',
     thresholds: [2, 3],
-    desc: 'Fighters heal for a % of all damage they deal.',
+    desc: 'Innate: hunt down enemy assassins that dive your backline. Bonus: heal for a % of all damage dealt.',
     tiers: ['20% lifesteal', '40% lifesteal'],
     values: [0.2, 0.4],
   },
