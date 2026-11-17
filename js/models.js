@@ -129,8 +129,9 @@ function originTexture(tex, origin) {
     px[i] = nr; px[i + 1] = ng; px[i + 2] = nb;
   }
   ctx.putImageData(data, 0, 0);
+  // clone() shares the underlying image Source, so give the copy its own Source.
   const out = tex.clone();
-  out.image = cv;
+  out.source = new THREE.Source(cv);
   out.needsUpdate = true;
   texCache.set(key, out);
   return out;
