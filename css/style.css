@@ -59,7 +59,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .ubar .stars.s3 { color: var(--gold); }
 .ubar .hpb { position: relative; height: 6px; background: #000a; border-radius: 2px; overflow: hidden; border: 1px solid #0008; }
 .ubar .hp, .ubar .sh { position: absolute; top: 0; bottom: 0; left: 0; }
-.ubar.player .hp { background: #3ddc97; } .ubar.enemy .hp { background: #ff4d6d; }
+.ubar.player .hp { background: #3d9bff; } .ubar.enemy .hp { background: #ff4d6d; }
 .ubar .sh { background: #f2f4ff; }
 .ubar .mpb { height: 3px; margin-top: 1px; background: #000a; border-radius: 2px; overflow: hidden; }
 .ubar .mp { display: block; height: 100%; background: #5aa8ff; }
@@ -153,3 +153,17 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .gainline { color: var(--gold) !important; font-weight: 600; }
 .champgrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 10px; }
 .champgrid img { width: 100%; border-radius: 6px; background: #0b0e1c; }
+#hp span { margin-right: 1px; } #hp span.lost { opacity: .2; filter: grayscale(1); }
+.stat.hp b { color: #ff5d78; letter-spacing: 1px; }
+.trait.buff { border-color: #5aa8ff; background: #17284a; color: var(--text); }
+.rewards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.rcard { background: #0b0e1c; border: 1px solid var(--line) !important; border-radius: 12px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.rcard:active { border-color: var(--gold) !important; background: #1d1a0c; }
+.rcard img { width: 64px; height: 64px; }
+.rcard .big { font-size: 34px; height: 64px; line-height: 64px; color: var(--gold); }
+.rcard b { font-size: 14px; }
+.rcard span { font-size: 11px; color: var(--dim); line-height: 1.25; }
+.rcard small { font-size: 10px; color: var(--accent); }
+.o-ember { background: radial-gradient(circle at 50% 38%, #ff6a3d38, #0b0e1c 70%) !important; }
+.o-frost { background: radial-gradient(circle at 50% 38%, #6fd3ff38, #0b0e1c 70%) !important; }
+.o-storm { background: radial-gradient(circle at 50% 38%, #b78cff38, #0b0e1c 70%) !important; }

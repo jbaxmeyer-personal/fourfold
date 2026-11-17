@@ -11,7 +11,7 @@ export const CLASSES = {
   fighter: {
     name: 'Fighter', icon: '⚔️', role: 'Frontline',
     thresholds: [2, 3],
-    desc: 'Innate: hunt down enemy assassins that dive your backline. Bonus: heal for a % of all damage dealt.',
+    desc: 'Innate: hunt down enemy assassins that dive your backline, but weak to magic. Bonus: heal for a % of all damage dealt.',
     tiers: ['20% lifesteal', '40% lifesteal'],
     values: [0.2, 0.4],
   },
@@ -25,7 +25,7 @@ export const CLASSES = {
   mage: {
     name: 'Mage', icon: '🔮', role: 'Backline',
     thresholds: [2, 3],
-    desc: 'Mage abilities deal bonus damage.',
+    desc: 'Innate: abilities deal +25% damage to Fighters. Bonus: mage abilities deal bonus damage.',
     tiers: ['+30% ability dmg', '+70% ability dmg'],
     values: [0.3, 0.7],
   },
@@ -72,11 +72,11 @@ export const ORIGINS = {
 // Base 1-star stats by class. range is in hexes.
 export const CLASS_STATS = {
   tank:     { hp: 900, ad: 50, as: 0.60, range: 1, armor: 45, mr: 45, mana: 80, startMana: 20, crit: 0 },
-  fighter:  { hp: 760, ad: 62, as: 0.72, range: 1, armor: 30, mr: 30, mana: 70, startMana: 0,  crit: 0 },
+  fighter:  { hp: 760, ad: 62, as: 0.72, range: 1, armor: 30, mr: 10, mana: 70, startMana: 0,  crit: 0 },
   assassin: { hp: 560, ad: 68, as: 0.85, range: 1, armor: 20, mr: 20, mana: 60, startMana: 10, crit: 0.25 },
-  mage:     { hp: 520, ad: 40, as: 0.65, range: 3, armor: 15, mr: 30, mana: 70, startMana: 20, crit: 0 },
-  ranger:   { hp: 540, ad: 58, as: 0.78, range: 4, armor: 15, mr: 15, mana: 80, startMana: 0,  crit: 0 },
-  support:  { hp: 580, ad: 35, as: 0.65, range: 3, armor: 20, mr: 30, mana: 60, startMana: 20, crit: 0 },
+  mage:     { hp: 520, ad: 40, as: 0.65, range: 2, armor: 15, mr: 30, mana: 70, startMana: 20, crit: 0 },
+  ranger:   { hp: 540, ad: 58, as: 0.78, range: 3, armor: 15, mr: 15, mana: 80, startMana: 0,  crit: 0 },
+  support:  { hp: 580, ad: 35, as: 0.65, range: 2, armor: 20, mr: 30, mana: 60, startMana: 20, crit: 0 },
 };
 
 export const STAR_MULT = [0, 1, 1.8, 3.24];   // hp / ad
@@ -139,7 +139,7 @@ export function shopOdds(fight) {
 }
 
 export const TOTAL_FIGHTS = 12;
-export const START_HP = 50;
+export const LIVES = 3;
 export const START_GOLD = 10;
 export const REROLL_COST = 2;
 export const BENCH_SIZE = 6;
@@ -147,16 +147,16 @@ export const MAX_BOARD = 4;
 
 // Gauntlet: stars for each enemy unit and a stat multiplier.
 export const ENCOUNTERS = [
-  { type: 'normal', stars: [1, 1], mult: 0.9 },
   { type: 'normal', stars: [1, 1], mult: 1.0 },
+  { type: 'normal', stars: [1, 1, 1], mult: 0.9 },
   { type: 'normal', stars: [1, 1, 1], mult: 1.0 },
-  { type: 'elite',  stars: [2, 1, 1], mult: 1.0 },
-  { type: 'normal', stars: [1, 1, 1, 1], mult: 1.0 },
+  { type: 'elite',  stars: [2, 2, 1], mult: 1.0 },
   { type: 'normal', stars: [2, 1, 1, 1], mult: 1.0 },
   { type: 'normal', stars: [2, 1, 1, 1], mult: 1.05 },
-  { type: 'elite',  stars: [2, 2, 1, 1], mult: 1.05 },
+  { type: 'normal', stars: [2, 2, 1, 1], mult: 1.0 },
+  { type: 'elite',  stars: [2, 2, 1, 1], mult: 1.1 },
   { type: 'normal', stars: [2, 2, 2, 1], mult: 1.0 },
-  { type: 'normal', stars: [2, 2, 2, 1], mult: 1.05 },
+  { type: 'normal', stars: [2, 2, 2, 1], mult: 1.08 },
   { type: 'normal', stars: [2, 2, 2, 2], mult: 1.0 },
   { type: 'boss',   stars: [3, 2, 2, 2], mult: 1.05 },
 ];
@@ -167,3 +167,21 @@ export const ENCOUNTER_NAMES = {
   storm: ['Storm Callers', 'Static Swarm', 'Thunder Choir', 'Gale Riders'],
 };
 export const BOSS_NAMES = { ember: 'The Ashen King', frost: 'The Winter Court', storm: 'The Tempest Throne' };
+
+// Encounter archetypes so runs don't repeat: class weights for enemy picks.
+export const ARCHETYPES = {
+  balanced:  { name: null, w: { tank: 2, fighter: 2, assassin: 1, mage: 2, ranger: 2, support: 1 } },
+  dive:      { name: 'Divers', w: { assassin: 5, fighter: 2, tank: 1, mage: 1, ranger: 1, support: 1 } },
+  wall:      { name: 'Wall', w: { tank: 4, fighter: 3, support: 2, mage: 1, ranger: 1, assassin: 0.5 } },
+  artillery: { name: 'Artillery', w: { mage: 4, ranger: 4, tank: 2, support: 1, fighter: 0.5, assassin: 0.5 } },
+  brawl:     { name: 'Brawlers', w: { fighter: 5, tank: 2, assassin: 2, support: 1, mage: 0.5, ranger: 0.5 } },
+};
+
+// Permanent run buffs offered as rewards. apply(fighter, stacks)
+export const BUFFS = {
+  vitality: { name: 'Vitality', icon: '❤️', desc: '+8% max HP for your team', apply: (f, n) => { const b = Math.round(f.maxHp * 0.08 * n); f.maxHp += b; f.hp += b; } },
+  might:    { name: 'Might', icon: '💪', desc: '+8% damage for your team', apply: (f, n) => { f.dmgAmp += 0.08 * n; } },
+  haste:    { name: 'Haste', icon: '💨', desc: '+10% attack speed for your team', apply: (f, n) => { f.asBonus += 0.1 * n; } },
+  bulwark:  { name: 'Ironskin', icon: '🪨', desc: '+12 armor and MR for your team', apply: (f, n) => { f.armor += 12 * n; f.mr += 12 * n; } },
+  focus:    { name: 'Focus', icon: '🔷', desc: '+15 starting mana for your team', apply: (f, n) => { f.mana = Math.min(f.maxMana, f.mana + 15 * n); } },
+};

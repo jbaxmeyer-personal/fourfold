@@ -20,3 +20,24 @@ export function hexPos(side, id) {
 }
 
 export function rangeToWorld(hexes) { return hexes * W * 0.98 + 0.25; }
+
+// ---------- Combat graph: 22 hex nodes (both sides), adjacency and hop distances ----------
+export const NODES = [];
+for (const side of ['player', 'enemy']) for (const id of HEX_IDS) {
+  const p = hexPos(side, id);
+  NODES.push({ i: NODES.length, side, hex: id, x: p.x, z: p.z, row: parseHex(id).row });
+}
+export const NODE_INDEX = (side, hex) => NODES.findIndex(n => n.side === side && n.hex === hex);
+export const ADJ = NODES.map(a => NODES.filter(b => {
+  if (a === b) return false;
+  const d = Math.hypot(a.x - b.x, a.z - b.z);
+  if (a.side === b.side) return d <= W * 1.05;
+  return a.row === 0 && b.row === 0 && Math.abs(a.x - b.x) <= W * 1.05; // across the river (straight + diagonal)
+}).map(b => b.i));
+export const HOPS = NODES.map(a => {
+  const dist = NODES.map(() => Infinity);
+  dist[a.i] = 0;
+  const q = [a.i];
+  while (q.length) { const c = q.shift(); for (const n of ADJ[c]) if (dist[n] === Infinity) { dist[n] = dist[c] + 1; q.push(n); } }
+  return dist;
+});

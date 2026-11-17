@@ -2,8 +2,9 @@
 import * as THREE from 'three';
 import { CHAMP_BY_ID, ORIGINS } from './data.js';
 import { R, HEX_IDS, hexPos, GAP } from './layout.js';
+import { createCharacter } from './models.js';
 
-const TEAM_COLOR = { player: 0x3ddc97, enemy: 0xff4d6d };
+export const TEAM_COLOR = { player: 0x3d9bff, enemy: 0xff4d5e };
 
 function mat(color, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.55, metalness: 0.08, ...extra });
@@ -13,127 +14,6 @@ function mesh(geo, m, x = 0, y = 0, z = 0) {
   o.position.set(x, y, z);
   o.castShadow = true;
   return o;
-}
-
-// ---------- Champion models (built from primitives, facing +z) ----------
-export function buildModel(champId) {
-  const c = CHAMP_BY_ID[champId];
-  const oc = ORIGINS[c.origin].color;
-  const main = mat(oc);
-  const dark = mat(0x262b40);
-  const skin = mat(0xf0dcc0);
-  const metal = mat(0xd3d8e2, { metalness: 0.55, roughness: 0.28 });
-  const wood = mat(0x8a5a32);
-  const glow = mat(oc, { emissive: oc, emissiveIntensity: 0.9 });
-  const eye = mat(0x111111);
-  const g = new THREE.Group();
-  const body = new THREE.Group();
-  g.add(body);
-  const parts = {};
-  const eyes = (y, z, spread = 0.09, m = eye) => {
-    body.add(mesh(new THREE.SphereGeometry(0.045, 6, 4), m, -spread, y, z));
-    body.add(mesh(new THREE.SphereGeometry(0.045, 6, 4), m, spread, y, z));
-  };
-  const legs = (m, w = 0.22, h = 0.45, sx = 0.2) => {
-    body.add(mesh(new THREE.BoxGeometry(w, h, w * 1.1), m, -sx, h / 2, 0));
-    body.add(mesh(new THREE.BoxGeometry(w, h, w * 1.1), m, sx, h / 2, 0));
-  };
-
-  switch (c.cls) {
-    case 'tank': {
-      legs(dark, 0.3, 0.45, 0.25);
-      body.add(mesh(new THREE.BoxGeometry(1.0, 0.85, 0.7), main, 0, 0.85, 0));
-      body.add(mesh(new THREE.IcosahedronGeometry(0.3, 0), main, -0.6, 1.2, 0));
-      body.add(mesh(new THREE.IcosahedronGeometry(0.3, 0), main, 0.6, 1.2, 0));
-      body.add(mesh(new THREE.BoxGeometry(0.48, 0.42, 0.48), dark, 0, 1.48, 0));
-      body.add(mesh(new THREE.BoxGeometry(0.36, 0.08, 0.05), glow, 0, 1.5, 0.25));
-      const shield = mesh(new THREE.BoxGeometry(0.8, 1.0, 0.12), metal, -0.15, 0.85, 0.5);
-      shield.rotation.y = 0.15;
-      body.add(shield);
-      body.add(mesh(new THREE.BoxGeometry(0.3, 0.3, 0.05), main, -0.15, 0.9, 0.57));
-      break;
-    }
-    case 'fighter': {
-      legs(dark);
-      body.add(mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.75, 6), main, 0, 0.82, 0));
-      body.add(mesh(new THREE.IcosahedronGeometry(0.26, 0), skin, 0, 1.42, 0));
-      body.add(mesh(new THREE.ConeGeometry(0.22, 0.32, 5), main, 0, 1.72, -0.02));
-      eyes(1.45, 0.22);
-      const sword = new THREE.Group();
-      sword.add(mesh(new THREE.BoxGeometry(0.09, 1.0, 0.04), metal, 0, 0.55, 0));
-      sword.add(mesh(new THREE.BoxGeometry(0.3, 0.06, 0.08), glow, 0, 0.06, 0));
-      sword.position.set(0.48, 0.75, 0.15);
-      sword.rotation.x = 0.6;
-      body.add(sword);
-      parts.weapon = sword;
-      break;
-    }
-    case 'assassin': {
-      legs(dark, 0.18, 0.42, 0.15);
-      body.add(mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.7, 5), dark, 0, 0.78, 0));
-      body.add(mesh(new THREE.ConeGeometry(0.34, 0.65, 5), main, 0, 1.45, 0));
-      body.add(mesh(new THREE.SphereGeometry(0.2, 6, 5), mat(0x0c0d14), 0, 1.33, 0.08));
-      eyes(1.36, 0.25, 0.07, glow);
-      body.add(mesh(new THREE.BoxGeometry(0.62, 0.1, 0.36), main, 0, 1.12, 0));
-      for (const s of [-1, 1]) {
-        const d = mesh(new THREE.ConeGeometry(0.06, 0.55, 4), glow, s * 0.38, 0.7, 0.25);
-        d.rotation.x = Math.PI / 2 + 0.3;
-        body.add(d);
-      }
-      body.rotation.x = 0.12;
-      break;
-    }
-    case 'mage': {
-      body.add(mesh(new THREE.ConeGeometry(0.55, 1.15, 7), main, 0, 0.58, 0));
-      body.add(mesh(new THREE.IcosahedronGeometry(0.25, 0), skin, 0, 1.3, 0));
-      eyes(1.32, 0.21);
-      const hat = mesh(new THREE.ConeGeometry(0.34, 0.75, 7), dark, 0, 1.75, -0.03);
-      hat.rotation.z = 0.18;
-      body.add(hat);
-      body.add(mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.05, 10), dark, 0, 1.43, 0));
-      const orb = mesh(new THREE.IcosahedronGeometry(0.17, 1), glow, 0.55, 1.15, 0.3);
-      body.add(orb);
-      parts.orb = orb;
-      break;
-    }
-    case 'ranger': {
-      legs(dark, 0.2, 0.45, 0.17);
-      body.add(mesh(new THREE.CylinderGeometry(0.26, 0.32, 0.72, 6), dark, 0, 0.8, 0));
-      const cloak = mesh(new THREE.ConeGeometry(0.42, 0.9, 6, 1, true), main, 0, 0.92, -0.05);
-      body.add(cloak);
-      body.add(mesh(new THREE.IcosahedronGeometry(0.24, 0), skin, 0, 1.38, 0));
-      body.add(mesh(new THREE.ConeGeometry(0.3, 0.38, 6), main, 0, 1.62, -0.04));
-      eyes(1.4, 0.2);
-      const bow = new THREE.Group();
-      bow.add(mesh(new THREE.TorusGeometry(0.55, 0.045, 4, 14, Math.PI), wood));
-      bow.add(mesh(new THREE.BoxGeometry(1.1, 0.015, 0.015), mat(0xeeeeee)));
-      bow.rotation.z = Math.PI / 2;
-      bow.rotation.y = 0.3;
-      bow.position.set(-0.42, 0.95, 0.25);
-      body.add(bow);
-      body.add(mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.55, 6), wood, 0.2, 1.05, -0.3));
-      break;
-    }
-    case 'support': {
-      body.add(mesh(new THREE.CylinderGeometry(0.26, 0.5, 0.95, 8), mat(0xf4efe6), 0, 0.48, 0));
-      body.add(mesh(new THREE.CylinderGeometry(0.27, 0.3, 0.25, 8), main, 0, 0.98, 0));
-      body.add(mesh(new THREE.IcosahedronGeometry(0.25, 0), skin, 0, 1.3, 0));
-      eyes(1.32, 0.21);
-      const halo = mesh(new THREE.TorusGeometry(0.26, 0.04, 6, 18), glow, 0, 1.7, 0);
-      halo.rotation.x = Math.PI / 2;
-      body.add(halo);
-      parts.halo = halo;
-      body.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.6, 5), wood, 0.48, 0.8, 0.1));
-      const gem = mesh(new THREE.OctahedronGeometry(0.14, 0), glow, 0.48, 1.68, 0.1);
-      body.add(gem);
-      parts.orb = gem;
-      break;
-    }
-  }
-  g.userData.parts = parts;
-  g.userData.body = body;
-  g.userData.materials = [main, dark, skin, metal, wood, glow, eye];
-  return g;
 }
 
 // ---------- Renderer ----------
@@ -260,14 +140,20 @@ export class Renderer {
     if (v && (v.id !== u.id || v.star !== u.star)) { this.removeView(u.uid); v = null; }
     if (v) return v;
     const group = new THREE.Group();
-    const model = buildModel(u.id);
-    const s = [0, 0.78, 0.9, 1.02][u.star];
-    model.scale.setScalar(s);
-    group.add(model);
+    const char = createCharacter(u.id);
+    const model = char.model;
+    const s = [0, 1, 1.1, 1.22][u.star];
+    const inner = new THREE.Group();
+    inner.scale.setScalar(s);
+    inner.add(model);
+    group.add(inner);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 4, 24), new THREE.MeshBasicMaterial({ color: TEAM_COLOR[u.side] }));
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.1;
     group.add(ring);
+    const disk = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: ORIGINS[CHAMP_BY_ID[u.id].origin].color, transparent: true, opacity: 0.32, depthWrite: false }));
+    disk.rotation.x = -Math.PI / 2; disk.position.y = 0.09;
+    group.add(disk);
     if (u.star >= 2) {
       const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.035, 4, 24), new THREE.MeshBasicMaterial({ color: u.star === 3 ? 0xffd34d : 0xd9e2f2 }));
       ring2.rotation.x = Math.PI / 2; ring2.position.y = 0.1;
@@ -283,9 +169,9 @@ export class Renderer {
     this.overlay.appendChild(bar);
 
     v = {
-      uid: u.uid, id: u.id, star: u.star, side: u.side, group, model, bar,
+      uid: u.uid, id: u.id, star: u.star, side: u.side, group, model, char, bar,
       hpEl: bar.querySelector('.hp'), shEl: bar.querySelector('.sh'), mpEl: bar.querySelector('.mp'),
-      x: u.x, z: u.z, tx: u.x, tz: u.z, facing: group.rotation.y, lunge: 0, flash: 0, jump: 0, dead: 0, alive: true,
+      x: u.x, z: u.z, tx: u.x, tz: u.z, facing: group.rotation.y, flash: 0, dead: 0, alive: true,
       hex: u.hex, scale: s,
     };
     model.traverse(o => { if (o.isMesh) o.userData.uid = u.uid; });
@@ -308,6 +194,9 @@ export class Renderer {
     for (const u of list) {
       const p = hexPos(u.side, u.hex);
       const v = this.ensureView({ ...u, ...p });
+      if (!v.alive || v.char.dead || v.char.base !== v.char.action(v.char.names.idle)) {
+        v.char.dead = false; v.char.oneShot = null; v.char.mixer.stopAllAction(); v.char.base = null; v.char.setBase('idle');
+      }
       v.hex = u.hex; v.tx = p.x; v.tz = p.z; v.alive = true; v.dead = 0;
       v.group.visible = true; v.group.scale.setScalar(1);
       v.facingTarget = u.side === 'player' ? Math.PI : 0;
@@ -330,15 +219,16 @@ export class Renderer {
   onEvent(e) {
     const v = this.views.get(e.uid);
     switch (e.type) {
-      case 'attack': if (v) v.lunge = v.combat && v.combat.melee ? 0.2 : 0.12; break;
+      case 'attack': if (v) v.char.play('attack', e.interval * 0.9); break;
       case 'dmg':
         if (v) { v.flash = 0.12; this.floatText(v, e.amount, e.crit ? 'crit' : e.kind); }
         break;
       case 'heal': if (v) this.floatText(v, '+' + e.amount, 'heal'); break;
       case 'shield': if (v) this.floatText(v, '◈' + e.amount, 'shield'); break;
-      case 'leap': break;
-      case 'cast': if (v) this.floatText(v, e.name, 'cast'); break;
-      case 'death': if (v) { v.alive = false; v.dead = 0.6; } break;
+      case 'leap': if (v) v.char.play('Jump_Full_Short', 0.8); break;
+      case 'cast': if (v) { this.floatText(v, e.name, 'cast'); v.char.play('cast', 0.9); } break;
+      case 'death': if (v) { v.alive = false; v.dead = 2.2; v.char.die(); } break;
+      case 'cheer': if (v) v.char.cheer(); break;
       case 'fx': this.spawnFx(e); break;
     }
   }
@@ -441,40 +331,34 @@ export class Renderer {
         while (d < -Math.PI) d += Math.PI * 2;
         v.facing += d * Math.min(1, dt * 10);
       }
-      let lx = 0, lz = 0, y = 0.08;
-      if (v.lunge > 0) {
-        const p = Math.sin((v.lunge / 0.2) * Math.PI) * 0.35;
-        lx = Math.sin(v.facing) * p; lz = Math.cos(v.facing) * p;
-        v.lunge -= dt;
-      }
-      if (f && f.leap && f.leapP > 0) y += Math.sin(f.leapP * Math.PI) * 1.8;
-      v.group.position.set(v.x + lx, y, v.z + lz);
+      let y = 0.08;
+      if (f && f.leap && f.leapP > 0) y += Math.sin(f.leapP * Math.PI) * 1.4;
+      v.group.position.set(v.x, y, v.z);
       v.group.rotation.y = v.facing;
-      const body = v.model.userData.body;
-      body.position.y = Math.sin(t * 3 + v.uid) * 0.035 + (f && f.moving ? Math.abs(Math.sin(t * 12 + v.uid)) * 0.08 : 0);
-      const parts = v.model.userData.parts;
-      if (parts.orb) { parts.orb.rotation.y += dt * 2; parts.orb.position.y += Math.sin(t * 2.5 + v.uid) * 0.002; }
-      if (parts.halo) parts.halo.rotation.z += dt;
+      if (f && (f.moving || f.leap)) v.runT = 0.15; else v.runT = (v.runT || 0) - dt;
+      if (!v.char.dead) v.char.setBase(v.runT > 0 ? 'run' : 'idle');
+      v.char.update(dt);
 
       // hit flash
-      const mats = v.model.userData.materials;
+      const mats = v.char.materials;
       if (v.flash > 0) {
         v.flash -= dt;
-        for (const m of mats) { if (!m.userData.base) m.userData.base = { e: m.emissive.getHex(), i: m.emissiveIntensity }; m.emissive.setHex(0xffffff); m.emissiveIntensity = 0.6; }
-        if (v.flash <= 0) for (const m of mats) { const b = m.userData.base; m.emissive.setHex(b.e); m.emissiveIntensity = b.i; }
+        const k2 = v.flash > 0 ? 0.55 : 0;
+        for (const m of mats) { m.emissive.setHex(0xffffff); m.emissiveIntensity = k2; }
       }
-      // stun / death
+      // death: play the animation, then sink away
       if (!v.alive) {
         v.dead -= dt;
-        const s = Math.max(0, v.dead / 0.6);
-        v.group.scale.setScalar(s);
-        v.group.position.y -= (1 - s) * 0.3;
+        if (v.dead < 0.6) {
+          const s2 = Math.max(0, v.dead / 0.6);
+          v.group.position.y -= (1 - s2) * 0.8;
+        }
         if (v.dead <= 0) v.group.visible = false;
         v.bar.style.display = 'none';
         continue;
       }
       // bars
-      const sp = this.toScreen(v.group.position.x, 2.05 * v.scale + 0.25, v.group.position.z);
+      const sp = this.toScreen(v.group.position.x, 1.7 * v.scale + 0.35, v.group.position.z);
       v.bar.style.transform = `translate(${sp.x}px, ${sp.y}px)`;
       if (f) {
         const tot = Math.max(f.maxHp, f.hp + f.shield);
@@ -496,16 +380,31 @@ export class Renderer {
         live.add(p.id);
         let m = this.projMeshes.get(p.id);
         if (!m) {
-          const color = ORIGINS[p.src.origin].color;
+          const team = new THREE.Color(TEAM_COLOR[p.side]);
+          const tint = new THREE.Color(0xffffff).lerp(team, 0.65);
           if (p.kind === 'ranger') {
-            m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-            m.rotation.x = Math.PI / 2;
-            const holder = new THREE.Group(); holder.add(m); m = holder;
+            const holder = new THREE.Group();
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.7, 4), new THREE.MeshBasicMaterial({ color: tint }));
+            shaft.rotation.x = Math.PI / 2;
+            const head = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 4), new THREE.MeshBasicMaterial({ color: team }));
+            head.rotation.x = Math.PI / 2; head.position.z = 0.4;
+            holder.add(shaft, head);
+            m = holder;
           } else {
-            m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), new THREE.MeshBasicMaterial({ color }));
+            m = new THREE.Group();
+            m.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 1), new THREE.MeshBasicMaterial({ color: 0xffffff })));
+            m.add(new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 1), new THREE.MeshBasicMaterial({ color: tint, transparent: true, opacity: 0.55 })));
           }
+          m.userData.tint = tint;
           this.scene.add(m);
           this.projMeshes.set(p.id, m);
+        }
+        // faint trail
+        if (Math.random() < 0.7) {
+          const t2 = new THREE.Mesh(this.trailGeo || (this.trailGeo = new THREE.IcosahedronGeometry(0.07, 0)), new THREE.MeshBasicMaterial({ color: m.userData.tint, transparent: true, opacity: 0.6 }));
+          t2.position.set(p.x, 1.0, p.z);
+          t2.userData = { life: 0.22, max: 0.22, keepGeo: true };
+          this.scene.add(t2); this.fx.push(t2);
         }
         m.position.set(p.x, 1.0, p.z);
         m.lookAt(p.tgt.x, 1.0, p.tgt.z);
@@ -519,7 +418,7 @@ export class Renderer {
       const a = Math.max(0, m.userData.life / m.userData.max);
       m.material.opacity = a * 0.85;
       if (m.userData.grow) m.scale.setScalar(0.3 + (1 - a) * m.userData.grow);
-      if (m.userData.life <= 0) { this.scene.remove(m); m.geometry.dispose(); m.material.dispose(); return false; }
+      if (m.userData.life <= 0) { this.scene.remove(m); if (!m.userData.keepGeo) m.geometry.dispose(); m.material.dispose(); return false; }
       return true;
     });
 
@@ -537,19 +436,20 @@ export function thumbnail(champId) {
     r.setSize(160, 160);
     r.outputColorSpace = THREE.SRGBColorSpace;
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xdde8ff, 0x403050, 1.4));
+    scene.add(new THREE.HemisphereLight(0xdde8ff, 0x403050, 1.6));
     const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(2, 4, 5); scene.add(d);
-    const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-    cam.position.set(1.6, 2.0, 4.2); cam.lookAt(0, 1.0, 0);
+    const cam = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
+    cam.position.set(1.2, 1.5, 3.6); cam.lookAt(0, 0.82, 0);
     thumbR = { r, scene, cam };
   }
   const { r, scene, cam } = thumbR;
-  const m = buildModel(champId);
-  m.rotation.y = 0.35;
-  scene.add(m);
+  const ch = createCharacter(champId);
+  ch.model.rotation.y = 0.6;
+  ch.update(0.4);
+  scene.add(ch.model);
   r.render(scene, cam);
   const url = r.domElement.toDataURL('image/png');
-  scene.remove(m);
+  scene.remove(ch.model);
   thumbCache.set(champId, url);
   return url;
 }

@@ -1,12 +1,14 @@
-// Deterministic-ish auto-battle simulation, independent of rendering.
-import { CHAMP_BY_ID, CLASS_STATS, STAR_MULT, ABILITY_MULT, CLASSES, ORIGINS } from './data.js';
-import { hexPos, rangeToWorld } from './layout.js';
+// Auto-battle simulation on the hex graph, independent of rendering.
+// Units occupy one hex at a time, step hex-to-hex, and can body-block each other.
+import { CHAMP_BY_ID, CLASS_STATS, STAR_MULT, ABILITY_MULT, BUFFS } from './data.js';
+import { NODES, NODE_INDEX, ADJ, HOPS } from './layout.js';
 import { Game } from './game.js';
 
-const MOVE_SPEED = 2.4;
-const UNIT_RADIUS = 0.45;
-const TIME_LIMIT = 40;
+const STEP_TIME = 0.5;      // seconds to walk one hex
+const TIME_LIMIT = 45;
+const OVERTIME = 25;        // after this, damage ramps up and healing falls off
 const PROJ_SPEED = 13;
+const MAGE_VS_FIGHTER = 1.25;
 
 function tierVal(traits, key) {
   const t = traits.find(t => t.key === key);
@@ -19,15 +21,16 @@ function makeFighter(u, side, hex, mult) {
   const base = CLASS_STATS[c.cls];
   const costScale = 1 + 0.15 * (c.cost - 1);
   const sm = STAR_MULT[u.star];
-  const p = hexPos(side, hex);
+  const node = NODE_INDEX(side, hex);
   const hp = Math.round(base.hp * costScale * sm * mult);
   return {
     uid: u.uid, id: u.id, star: u.star, side, champ: c, cls: c.cls, origin: c.origin,
-    x: p.x, z: p.z, homeHex: hex,
+    node, x: NODES[node].x, z: NODES[node].z, homeHex: hex,
+    move: null, blockedT: 0, prevNode: -1,
     maxHp: hp, hp,
     ad: base.ad * costScale * sm * mult,
     as: base.as, asBonus: 0, asMul: 1,
-    range: rangeToWorld(base.range), melee: base.range <= 1,
+    range: base.range, melee: base.range <= 1,
     armor: base.armor, mr: base.mr,
     maxMana: base.mana, mana: base.startMana,
     crit: base.crit, critDmg: 1.5,
@@ -43,15 +46,9 @@ function makeFighter(u, side, hex, mult) {
 }
 
 function applyTraits(team, traits, enemyTeam) {
-  const tank = tierVal(traits, 'tank');
-  const fighter = tierVal(traits, 'fighter');
-  const assassin = tierVal(traits, 'assassin');
-  const mage = tierVal(traits, 'mage');
-  const ranger = tierVal(traits, 'ranger');
-  const support = tierVal(traits, 'support');
-  const ember = tierVal(traits, 'ember');
-  const frost = tierVal(traits, 'frost');
-  const storm = tierVal(traits, 'storm');
+  const v = (k) => tierVal(traits, k);
+  const tank = v('tank'), fighter = v('fighter'), assassin = v('assassin'), mage = v('mage'), ranger = v('ranger');
+  const support = v('support'), ember = v('ember'), frost = v('frost'), storm = v('storm');
   for (const f of team) {
     if (tank && f.cls === 'tank') { f.maxHp += tank; f.hp += tank; }
     if (fighter && f.cls === 'fighter') f.vamp += fighter;
@@ -65,8 +62,17 @@ function applyTraits(team, traits, enemyTeam) {
   if (frost) for (const e of enemyTeam) e.asMul *= (1 - frost);
 }
 
+// Permanent run buffs from rewards (player only). buffs: {key: stacks}
+function applyBuffs(team, buffs) {
+  if (!buffs) return;
+  for (const [key, n] of Object.entries(buffs)) {
+    const b = BUFFS[key];
+    if (b && n > 0) for (const f of team) b.apply(f, n);
+  }
+}
+
 export class Battle {
-  constructor(playerBoard, enemy) {
+  constructor(playerBoard, enemy, buffs) {
     this.time = 0;
     this.events = [];
     this.projectiles = [];
@@ -79,39 +85,105 @@ export class Battle {
     this.enemyTraits = Game.traits(Object.values(enemy.board));
     applyTraits(pUnits, this.playerTraits, eUnits);
     applyTraits(eUnits, this.enemyTraits, pUnits);
+    applyBuffs(pUnits, buffs);
     this.units = [...pUnits, ...eUnits];
+    this.occ = NODES.map(() => null);
+    for (const u of this.units) this.occ[u.node] = u;
     this.started = false;
   }
 
   allies(f) { return this.units.filter(u => u.alive && u.side === f.side); }
   enemies(f) { return this.units.filter(u => u.alive && u.side !== f.side); }
+  hops(a, b) { return HOPS[a.node][b.node]; }
   dist(a, b) { return Math.hypot(a.x - b.x, a.z - b.z); }
   nearest(f, list) {
-    let best = null, bd = Infinity;
-    for (const u of list) { const d = this.dist(f, u); if (d < bd) { bd = d; best = u; } }
+    let best = null, bh = Infinity, bd = Infinity;
+    for (const u of list) {
+      const h = this.hops(f, u), d = this.dist(f, u);
+      if (h < bh || (h === bh && d < bd)) { bh = h; bd = d; best = u; }
+    }
     return best;
   }
   emit(e) { this.events.push(e); }
 
+  // Free node next to `t`, preferring the side away from the attacker's home.
+  freeNodeNear(t, f) {
+    const opts = ADJ[t.node].filter(n => !this.occ[n] || this.occ[n] === f);
+    if (!opts.length) return null;
+    const away = f.side === 'player' ? -1 : 1;
+    opts.sort((a, b) => NODES[b].z * away - NODES[a].z * away);
+    return opts[0];
+  }
+
+  // Jump through the air to node `n` (reserved immediately).
+  leap(f, n, delay = 0, onLand) {
+    if (n == null) return false;
+    if (f.move) { this.occ[f.move.to] = null; f.move = null; }
+    this.occ[f.node] = null;
+    this.occ[n] = f;
+    const to = NODES[n];
+    const dist = Math.hypot(to.x - f.x, to.z - f.z);
+    f.leap = { fx: f.x, fz: f.z, tx: to.x, tz: to.z, t: -delay, dur: Math.max(0.35, dist / 7), onLand };
+    f.node = n;
+    this.emit({ type: 'leap', uid: f.uid });
+    return true;
+  }
+
   start() {
     this.started = true;
-    // Assassins leap to the back of the enemy formation.
+    // Assassins leap behind the enemy backline.
     for (const f of this.units) {
       if (f.cls !== 'assassin') continue;
       const foes = this.enemies(f);
       if (!foes.length) continue;
       const back = foes.reduce((a, b) => (Math.abs(b.z) > Math.abs(a.z) ? b : a));
-      const dir = f.side === 'player' ? -1 : 1;
-      this.leap(f, back.x + (Math.random() - 0.5) * 0.6, back.z + dir * 0.9, 0.3 + Math.random() * 0.2);
-      f.target = back;
+      if (this.leap(f, this.freeNodeNear(back, f), 0.3 + Math.random() * 0.2)) f.target = back;
     }
   }
 
-  // Jump through the air to a point over `dur` seconds (after an optional wind-up delay).
-  leap(f, tx, tz, delay = 0, dur, onLand) {
-    const dist = Math.hypot(tx - f.x, tz - f.z);
-    f.leap = { fx: f.x, fz: f.z, tx, tz, t: -delay, dur: dur || Math.max(0.35, dist / 7), onLand };
-    this.emit({ type: 'leap', uid: f.uid });
+  kill(u) {
+    u.hp = 0; u.alive = false;
+    if (this.occ[u.node] === u) this.occ[u.node] = null;
+    if (u.move && this.occ[u.move.to] === u) this.occ[u.move.to] = null;
+    this.emit({ type: 'death', uid: u.uid });
+  }
+
+  pickTarget(f) {
+    if (f.tauntBy && f.tauntBy.alive) { f.target = f.tauntBy; return; }
+    if (f.cls === 'fighter') {
+      // Peel: fighters hunt enemy assassins that have dived into their half.
+      const mySide = f.side === 'player' ? 1 : -1;
+      const divers = this.enemies(f).filter(e => e.cls === 'assassin' && !e.leap && e.z * mySide > 0);
+      if (divers.length && !(f.target && f.target.alive && divers.includes(f.target))) { f.target = this.nearest(f, divers); return; }
+    }
+    if (!f.target || !f.target.alive) f.target = this.nearest(f, this.enemies(f));
+  }
+
+  // Step one hex toward the target if a free neighbour gets closer. Returns true if moving.
+  tryStep(f, t, dt) {
+    const cur = HOPS[f.node][t.node];
+    const free = ADJ[f.node].filter(n => !this.occ[n]);
+    let best = free.filter(n => HOPS[n][t.node] < cur);
+    if (!best.length && f.blockedT > 0.4) best = free.filter(n => HOPS[n][t.node] === cur && n !== f.prevNode);
+    if (!best.length) {
+      f.blockedT += dt;
+      // Stuck behind bodies for a while: switch to something reachable.
+      if (f.blockedT > 1.2 && !(f.tauntBy && f.tauntBy.alive)) {
+        const reachable = this.enemies(f).filter(e => e !== t && ADJ[f.node].some(n => !this.occ[n] && HOPS[n][e.node] < HOPS[f.node][e.node]));
+        if (reachable.length) f.target = this.nearest(f, reachable);
+        f.blockedT = 0;
+      }
+      return false;
+    }
+    best.sort((a, b) => HOPS[a][t.node] - HOPS[b][t.node] || Math.hypot(NODES[a].x - t.x, NODES[a].z - t.z) - Math.hypot(NODES[b].x - t.x, NODES[b].z - t.z));
+    const to = best[0];
+    this.occ[f.node] = null;
+    this.occ[to] = f;
+    f.move = { from: f.node, to, t: 0 };
+    f.prevNode = f.node;
+    f.node = to;
+    f.blockedT = 0;
+    return true;
   }
 
   step(dt) {
@@ -121,11 +193,11 @@ export class Battle {
 
     for (const f of this.units) {
       if (!f.alive) continue;
-      // Timers
       if (f.shieldT > 0) { f.shieldT -= dt; if (f.shieldT <= 0) f.shield = 0; }
       if (f.chillT > 0) { f.chillT -= dt; if (f.chillT <= 0) f.chill = 0; }
       if (f.buffT > 0) { f.buffT -= dt; if (f.buffT <= 0) f.buffAs = 0; }
       if (f.tauntT > 0) { f.tauntT -= dt; if (f.tauntT <= 0) f.tauntBy = null; }
+
       if (f.leap) {
         const L = f.leap;
         L.t += dt;
@@ -138,68 +210,52 @@ export class Battle {
         }
         continue;
       }
+      if (f.move) {
+        const m = f.move;
+        m.t += dt / STEP_TIME;
+        const a = NODES[m.from], b = NODES[m.to], p = Math.min(1, m.t);
+        f.x = a.x + (b.x - a.x) * p;
+        f.z = a.z + (b.z - a.z) * p;
+        f.facing = Math.atan2(b.x - a.x, b.z - a.z);
+        f.moving = true;
+        if (p >= 1) f.move = null;
+        continue;
+      }
+      f.moving = false;
       f.atkCd -= dt;
       if (f.castLock > 0) { f.castLock -= dt; continue; }
       if (f.stunT > 0) { f.stunT -= dt; continue; }
 
-      // Targeting
-      if (f.tauntBy && f.tauntBy.alive) f.target = f.tauntBy;
-      else if (f.cls === 'fighter') {
-        // Peel: fighters hunt down enemy assassins that have dived into their half of the board.
-        const mySide = f.side === 'player' ? 1 : -1;
-        const divers = this.enemies(f).filter(e => e.cls === 'assassin' && !e.leap && e.z * mySide > 0);
-        if (divers.length && !(f.target && f.target.alive && divers.includes(f.target))) f.target = this.nearest(f, divers);
-      }
-      if (!f.target || !f.target.alive) f.target = this.nearest(f, this.enemies(f));
-      const t = f.target;
+      this.pickTarget(f);
+      let t = f.target;
       if (!t) continue;
+      let inRange = this.hops(f, t) <= f.range;
+      // Don't walk past enemies: if something else is already in range, fight it instead.
+      if (!inRange && !(f.tauntBy && f.tauntBy.alive)) {
+        const near = this.enemies(f).filter(e => this.hops(f, e) <= f.range);
+        if (near.length) { t = f.target = this.nearest(f, near); inRange = true; }
+      }
 
-      // Cast
-      if (f.mana >= f.maxMana) {
+      if (f.mana >= f.maxMana && inRange) {
         f.mana = 0;
-        f.castLock = 0.35;
+        f.castLock = 0.45;
+        f.facing = Math.atan2(t.x - f.x, t.z - f.z);
         this.emit({ type: 'cast', uid: f.uid, name: f.champ.ability });
         ABILITIES[f.id](f, this, t);
         continue;
       }
+      if (!inRange) { this.tryStep(f, t, dt); continue; }
 
-      const d = this.dist(f, t);
       f.facing = Math.atan2(t.x - f.x, t.z - f.z);
-      if (d > f.range) {
-        const step = Math.min(MOVE_SPEED * dt, d - f.range + 0.01);
-        f.x += ((t.x - f.x) / d) * step;
-        f.z += ((t.z - f.z) / d) * step;
-        f.moving = true;
-      } else {
-        f.moving = false;
-        if (f.atkCd <= 0) {
-          const as = f.as * (1 + f.asBonus + f.buffAs) * f.asMul * (1 - f.chill);
-          f.atkCd = 1 / Math.max(0.2, as);
-          this.emit({ type: 'attack', uid: f.uid, tgt: t.uid });
-          if (f.melee) this.basicHit(f, t);
-          else this.projectiles.push({ id: this.nextProj++, src: f, tgt: t, x: f.x, z: f.z, kind: f.cls, onHit: () => this.basicHit(f, t) });
-        }
+      if (f.atkCd <= 0) {
+        const as = f.as * (1 + f.asBonus + f.buffAs) * f.asMul * (1 - f.chill);
+        f.atkCd = 1 / Math.max(0.2, as);
+        this.emit({ type: 'attack', uid: f.uid, tgt: t.uid, interval: f.atkCd });
+        if (f.melee) this.basicHit(f, t);
+        else this.projectiles.push({ id: this.nextProj++, src: f, tgt: t, x: f.x, z: f.z, kind: f.cls, side: f.side, onHit: () => this.basicHit(f, t) });
       }
     }
 
-    // Separation so units don't stack.
-    const alive = this.units.filter(u => u.alive && !u.leap);
-    for (let i = 0; i < alive.length; i++) {
-      for (let j = i + 1; j < alive.length; j++) {
-        const a = alive[i], b = alive[j];
-        let dx = b.x - a.x, dz = b.z - a.z;
-        let d = Math.hypot(dx, dz);
-        const min = UNIT_RADIUS * 2;
-        if (d < min) {
-          if (d < 1e-4) { dx = Math.random() - 0.5; dz = Math.random() - 0.5; d = Math.hypot(dx, dz); }
-          const push = (min - d) / 2;
-          a.x -= (dx / d) * push; a.z -= (dz / d) * push;
-          b.x += (dx / d) * push; b.z += (dz / d) * push;
-        }
-      }
-    }
-
-    // Projectiles
     for (const p of this.projectiles) {
       if (p.done) continue;
       if (!p.tgt.alive) { p.done = true; continue; }
@@ -210,13 +266,13 @@ export class Battle {
     }
     this.projectiles = this.projectiles.filter(p => !p.done);
 
-    // End check
     const pAlive = this.units.some(u => u.alive && u.side === 'player');
     const eAlive = this.units.some(u => u.alive && u.side === 'enemy');
     if (!pAlive || !eAlive || this.time >= TIME_LIMIT) {
       this.over = true;
       this.winner = pAlive && !eAlive ? 'player' : 'enemy';
       this.timedOut = pAlive && eAlive;
+      for (const u of this.units) if (u.alive && u.side === this.winner) this.emit({ type: 'cheer', uid: u.uid });
     }
   }
 
@@ -228,33 +284,28 @@ export class Battle {
 
   damage(src, tgt, amount, kind, opts = {}) {
     if (!tgt.alive) return 0;
-    let dmg = amount * (1 + src.dmgAmp);
+    let dmg = amount * (1 + src.dmgAmp) * this.overtimeAmp();
     if (opts.ability) dmg *= 1 + src.abilityAmp;
+    if (opts.ability && src.cls === 'mage' && tgt.cls === 'fighter') dmg *= MAGE_VS_FIGHTER;
     let crit = false;
     if (opts.forceCrit || (opts.canCrit && Math.random() < src.crit)) { dmg *= src.critDmg; crit = true; }
     if (kind === 'phys') dmg *= 100 / (100 + tgt.armor);
     else if (kind === 'magic') dmg *= 100 / (100 + tgt.mr);
     dmg = Math.round(dmg);
     let toHp = dmg;
-    if (tgt.shield > 0) {
-      const ab = Math.min(tgt.shield, toHp);
-      tgt.shield -= ab; toHp -= ab;
-    }
+    if (tgt.shield > 0) { const ab = Math.min(tgt.shield, toHp); tgt.shield -= ab; toHp -= ab; }
     tgt.hp -= toHp;
     src.dealt += dmg;
     tgt.mana = Math.min(tgt.maxMana, tgt.mana + Math.min(8, dmg * 0.04));
     if (src.vamp > 0 && src.alive) this.heal(src, src, dmg * src.vamp, true);
     this.emit({ type: 'dmg', uid: tgt.uid, amount: dmg, kind, crit });
-    if (tgt.hp <= 0) {
-      tgt.hp = 0; tgt.alive = false;
-      this.emit({ type: 'death', uid: tgt.uid });
-    }
+    if (tgt.hp <= 0) this.kill(tgt);
     return dmg;
   }
 
   heal(src, tgt, amount, quiet) {
     if (!tgt.alive) return;
-    const h = Math.min(tgt.maxHp - tgt.hp, Math.round(amount));
+    const h = Math.min(tgt.maxHp - tgt.hp, Math.round(amount * this.overtimeHeal()));
     if (h <= 0) return;
     tgt.hp += h;
     src.healed += h;
@@ -262,13 +313,17 @@ export class Battle {
   }
 
   shieldUnit(tgt, amount, dur = 4) {
+    amount *= this.overtimeHeal();
     tgt.shield += Math.round(amount);
     tgt.shieldT = Math.max(tgt.shieldT, dur);
     this.emit({ type: 'shield', uid: tgt.uid, amount: Math.round(amount) });
   }
 
-  within(x, z, r, list) { return list.filter(u => Math.hypot(u.x - x, u.z - z) <= r); }
+  overtimeAmp() { return this.time > OVERTIME ? 1 + 0.15 * (this.time - OVERTIME) : 1; }
+  overtimeHeal() { return this.time > OVERTIME ? 0.4 : 1; }
+  get inOvertime() { return this.time > OVERTIME; }
 
+  within(x, z, r, list) { return list.filter(u => Math.hypot(u.x - x, u.z - z) <= r); }
   survivors(side) { return this.units.filter(u => u.alive && u.side === side); }
 }
 
@@ -311,12 +366,13 @@ export const ABILITIES = {
     const foes = b.enemies(f);
     if (!foes.length) return;
     const low = foes.reduce((a, c) => (c.hp < a.hp ? c : a));
-    f.target = low;
-    b.leap(f, low.x + (Math.random() - 0.5) * 0.4, low.z + (f.side === 'player' ? -0.9 : 0.9), 0, undefined, () => {
+    const hit = () => {
       if (!f.alive || !low.alive) return;
       b.damage(f, low, f.ad * 2.5, 'phys', { ability: true, canCrit: true });
       fx(b, { kind: 'burst', uid: low.uid, color: 0xb78cff });
-    });
+    };
+    f.target = low;
+    if (b.hops(f, low) <= 1 || !b.leap(f, b.freeNodeNear(low, f), 0, hit)) hit();
   },
   ashblade(f, b, t) {
     const mult = t.hp / t.maxHp < 0.4 ? 6 : 3;

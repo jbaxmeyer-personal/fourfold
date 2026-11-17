@@ -1,11 +1,11 @@
 // Run state and rules: shop, bench, board, merges, traits, gauntlet.
 import {
   CHAMPS, CHAMP_BY_ID, CLASSES, ORIGINS, shopOdds, ENCOUNTERS, ENCOUNTER_NAMES, BOSS_NAMES,
-  TOTAL_FIGHTS, START_HP, START_GOLD, REROLL_COST, BENCH_SIZE, MAX_BOARD,
+  TOTAL_FIGHTS, LIVES, START_GOLD, REROLL_COST, BENCH_SIZE, MAX_BOARD, ARCHETYPES, BUFFS,
 } from './data.js';
 import { HEX_IDS, parseHex } from './layout.js';
 
-const SAVE_KEY = 'fourfold-save-v1';
+const SAVE_KEY = 'fourfold-save-v2';
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -23,8 +23,9 @@ export class Game {
     if (saved) { Object.assign(this, saved); }
     else {
       this.seed = (Math.random() * 2 ** 32) >>> 0;
-      this.hp = START_HP;
-      this.maxHp = START_HP;
+      this.lives = LIVES;
+      this.buffs = {};          // reward buffs: key -> stacks
+      this.reward = null;       // pending reward choices after a win
       this.gold = START_GOLD;
       this.fight = 1;
       this.bench = Array(BENCH_SIZE).fill(null);
@@ -33,7 +34,7 @@ export class Game {
       this.locked = false;
       this.nextUid = 1;
       this.rollCount = 0;
-      this.history = [];        // 'W' | 'L' per fight
+      this.history = [];        // {fight, won} per attempt
       this.rollShop();
     }
     this.enemy = this.makeEncounter(this.fight);
@@ -165,6 +166,10 @@ export class Game {
     if (to.type === 'board' && from.type === 'bench' && !b && this.boardCount() >= MAX_BOARD) {
       return `Max ${MAX_BOARD} champions on the board`;
     }
+    // Only one copy of each champion on the board.
+    const dupOnBoard = (u, exceptHex) => Object.entries(this.board).some(([h, x]) => h !== exceptHex && x.id === u.id);
+    if (to.type === 'board' && from.type === 'bench' && dupOnBoard(a, to.hex)) return `Only one ${CHAMP_BY_ID[a.id].name} on the board`;
+    if (b && from.type === 'board' && to.type === 'bench' && dupOnBoard(b, from.hex)) return `Only one ${CHAMP_BY_ID[b.id].name} on the board`;
     this._removeAt(from);
     if (b) this._removeAt(to);
     this._put(to, a);
@@ -226,66 +231,120 @@ export class Game {
     const r = this.rng(50 + fight);
     const origins = Object.keys(ORIGINS);
     const theme = origins[Math.floor(r() * origins.length)];
-    const maxCost = fight <= 2 ? 1 : fight <= 4 ? 2 : 3;
+    const archKeys = Object.keys(ARCHETYPES);
+    const arch = enc.type === 'normal' ? archKeys[Math.floor(r() * archKeys.length)] : 'balanced';
+    const weights = ARCHETYPES[arch].w;
+    const maxCost = fight <= 3 ? 1 : fight <= 5 ? 2 : 3;
     const n = enc.stars.length;
-    const themed = enc.type === 'normal' ? Math.min(n, 2 + (fight > 6 ? 1 : 0)) : n;
+    // Elites/boss are fully themed; normal fights lean on the theme and the archetype.
+    const themed = enc.type === 'normal' ? Math.min(n, 1 + Math.floor(r() * 2) + (fight > 6 ? 1 : 0)) : n;
 
     const pick = [];
     const avail = CHAMPS.filter(c => c.cost <= maxCost);
     const take = (pool) => {
       const p = pool.filter(c => !pick.includes(c));
-      if (!p.length) return;
-      pick.push(p[Math.floor(r() * p.length)]);
+      if (!p.length) return false;
+      let tot = p.reduce((s, c) => s + (weights[c.cls] || 1), 0), x = r() * tot;
+      for (const c of p) { x -= weights[c.cls] || 1; if (x <= 0) { pick.push(c); return true; } }
+      pick.push(p[p.length - 1]);
+      return true;
     };
-    // Guarantee a frontliner if 3+ units.
-    if (n >= 3) take(avail.filter(c => (c.cls === 'tank' || c.cls === 'fighter') && (enc.type === 'normal' || c.origin === theme)));
-    while (pick.length < themed) take(avail.filter(c => c.origin === theme));
-    while (pick.length < n) take(avail);
+    if (n >= 3 && arch !== 'artillery' && arch !== 'dive') take(avail.filter(c => (c.cls === 'tank' || c.cls === 'fighter') && (enc.type === 'normal' || c.origin === theme)));
+    while (pick.length < themed && take(avail.filter(c => c.origin === theme)));
+    while (pick.length < n && take(avail));
 
-    // Stars are spread randomly across the comp; a 3-star always lands on the cheapest unit.
     const stars = [...enc.stars].sort(() => r() - 0.5).sort((a, b) => (b === 3) - (a === 3));
     const sorted = [...pick].sort((a, b) => a.cost - b.cost);
     const units = sorted.map((c, i) => ({ uid: 1000 + fight * 10 + i, id: c.id, star: stars[i] }));
 
-    // Place: melee front, ranged back, overflow middle.
+    // Placement varies: melee in front, ranged in back, columns shuffled; assassins like corners.
+    const shuffle = (arr) => arr.map(v => [r(), v]).sort((a, b) => a[0] - b[0]).map(v => v[1]);
+    const free = new Set(HEX_IDS);
     const board = {};
-    const melee = new Set(['tank', 'fighter', 'assassin']);
-    const front = ['0:1', '0:2', '0:0', '0:3'], back = ['2:1', '2:2', '2:0', '2:3'], mid = ['1:1', '1:0', '1:2'];
-    let fi = 0, bi = 0, mi = 0;
+    const prefRows = { tank: [0, 1], fighter: [0, 1], assassin: [0, 2, 1], mage: [2, 1], ranger: [2, 1], support: [2, 1] };
     for (const u of units) {
-      const isMelee = melee.has(CHAMP_BY_ID[u.id].cls);
-      let hex = isMelee ? (fi < 2 ? front[fi++] : mid[mi++]) : (bi < 2 ? back[bi++] : mid[mi++]);
+      const cls = CHAMP_BY_ID[u.id].cls;
+      let hex = null;
+      for (const row of prefRows[cls]) {
+        let cands = shuffle([...free].filter(h => parseHex(h).row === row));
+        if (cls === 'assassin') cands.sort((a, b) => [0, 3].includes(parseHex(b).col) - [0, 3].includes(parseHex(a).col));
+        if (cands.length) { hex = cands[0]; break; }
+      }
+      if (!hex) hex = [...free][0];
+      free.delete(hex);
       board[hex] = u;
     }
     const names = ENCOUNTER_NAMES[theme];
-    const name = enc.type === 'boss' ? BOSS_NAMES[theme] : names[Math.floor(r() * names.length)];
+    let name = enc.type === 'boss' ? BOSS_NAMES[theme] : names[Math.floor(r() * names.length)];
+    if (ARCHETYPES[arch].name && enc.type === 'normal') name += ` · ${ARCHETYPES[arch].name}`;
     return { fight, type: enc.type, mult: enc.mult, theme, name, board };
   }
 
   // Apply a combat result. Returns summary for the UI.
-  resolve(won, survivors) {
+  resolve(won) {
     const enc = ENCOUNTERS[this.fight - 1];
-    let dmg = 0;
-    if (!won) {
-      dmg = 2 + Math.ceil(this.fight / 2) + 2 * survivors.reduce((s, u) => s + u.star, 0);
-      if (enc.type === 'boss') dmg += 6;
-      this.hp = Math.max(0, this.hp - dmg);
-    }
-    this.history.push(won ? 'W' : 'L');
+    if (!won) this.lives -= 1;
+    this.history.push({ fight: this.fight, won });
     const interest = Math.min(3, Math.floor(this.gold / 10));
-    const winBonus = won ? (enc.type === 'elite' ? 4 : 2) : 0;
+    const winBonus = won ? (enc.type === 'elite' ? 3 : 1) : 0;
     const income = 5 + interest + winBonus;
-    const result = { won, dmg, income, interest, winBonus, fight: this.fight };
+    const result = { won, income, interest, winBonus, fight: this.fight, lives: this.lives, boss: enc.type === 'boss' };
 
-    if (this.hp <= 0) { result.over = 'defeat'; return result; }
-    if (this.fight >= TOTAL_FIGHTS) { result.over = won ? 'victory' : 'defeat'; return result; }
+    if (this.lives <= 0) { result.over = 'defeat'; return result; }
+    if (won && this.fight >= TOTAL_FIGHTS) { result.over = 'victory'; return result; }
 
     this.gold += income;
-    this.fight += 1;
+    if (won) { this.fight += 1; this.reward = this.makeReward(enc.type); }
+    // A lost boss fight is replayed; other losses move on.
+    else if (enc.type !== 'boss') this.fight += 1;
     if (!this.locked) this.rollShop();
     this.locked = false;
     this.enemy = this.makeEncounter(this.fight);
     return result;
+  }
+
+  // ---------- Rewards (pick 1 of 3 after a win) ----------
+  makeReward(type) {
+    const r = this.rng(9000 + this.history.length);
+    const big = type === 'elite';
+    // Champion: often a copy of something you own (helps merges), otherwise a random one.
+    const owned = this.allUnits().filter(u => u.star < 3).map(u => u.id);
+    const maxed = this.maxedIds();
+    const odds = big ? [0.2, 0.4, 0.4] : shopOdds(this.fight);
+    let champ;
+    if (owned.length && r() < 0.5) champ = owned[Math.floor(r() * owned.length)];
+    else {
+      const x = r(), cost = x < odds[0] ? 1 : x < odds[0] + odds[1] ? 2 : 3;
+      let pool = CHAMPS.filter(c => c.cost === cost && !maxed.has(c.id));
+      if (!pool.length) pool = CHAMPS.filter(c => !maxed.has(c.id));
+      champ = pool.length ? pool[Math.floor(r() * pool.length)].id : CHAMPS[0].id;
+    }
+    const gold = (big ? 6 : 3) + Math.ceil(this.fight / 3);
+    const keys = Object.keys(BUFFS);
+    const buff = keys[Math.floor(r() * keys.length)];
+    return { champ, gold, buff };
+  }
+
+  claimReward(kind) {
+    const rw = this.reward;
+    if (!rw) return { ok: false };
+    if (kind === 'gold') this.gold += rw.gold;
+    else if (kind === 'buff') this.buffs[rw.buff] = (this.buffs[rw.buff] || 0) + 1;
+    else if (kind === 'champ') {
+      const id = rw.champ;
+      const canMerge = this.allUnits().filter(u => u.id === id && u.star === 1).length >= 2;
+      if (!this.bench.some(s => !s) && !canMerge) return { ok: false, err: 'Bench is full' };
+      const unit = { uid: this.nextUid++, id, star: 1 };
+      const slot = this.bench.findIndex(s => !s);
+      if (slot >= 0) this.bench[slot] = unit; else this._pendingUnit = unit;
+      const merged = this.checkMerges(unit);
+      this._pendingUnit = null;
+      if (merged && merged.star >= 3) this.shop = this.shop.map(s => (s === merged.id ? null : s));
+      this.reward = null;
+      return { ok: true, merged };
+    }
+    this.reward = null;
+    return { ok: true };
   }
 
   // ---------- Persistence ----------
