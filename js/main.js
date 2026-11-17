@@ -229,9 +229,7 @@ function showEnd(result, rows) {
 function backToPlan() {
   closeModal();
   phase = 'plan';
-  app.classList.remove('combat');
-  $('#speed').classList.add('hidden');
-  battle = null;
+  resetCombatUi();
   renderAll();
 }
 
@@ -253,11 +251,18 @@ function titleScreen() {
     <br><br>Tap to select · drag to move · long-press a shop card for details · drag onto the shop to sell.</div></div>`);
 }
 
+function resetCombatUi() {
+  app.classList.remove('combat');
+  $('#speed').classList.add('hidden');
+  battle = null;
+}
+
 function newRun() {
   Game.clearSave();
   game = new Game();
   selected = null;
   closeModal();
+  resetCombatUi();
   phase = 'plan';
   renderAll();
 }
