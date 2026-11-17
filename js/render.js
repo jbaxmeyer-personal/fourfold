@@ -225,7 +225,6 @@ export class Renderer {
         break;
       case 'heal': if (v) this.floatText(v, '+' + e.amount, 'heal'); break;
       case 'shield': if (v) this.floatText(v, '◈' + e.amount, 'shield'); break;
-      case 'leap': if (v) v.char.play('Jump_Full_Short', 0.8); break;
       case 'cast': if (v) { this.floatText(v, e.name, 'cast'); v.char.play('cast', 0.9); } break;
       case 'death': if (v) { v.alive = false; v.dead = 2.2; v.char.die(); } break;
       case 'cheer': if (v) v.char.cheer(); break;
@@ -332,10 +331,9 @@ export class Renderer {
         v.facing += d * Math.min(1, dt * 10);
       }
       let y = 0.08;
-      if (f && f.leap && f.leapP > 0) y += Math.sin(f.leapP * Math.PI) * 1.4;
       v.group.position.set(v.x, y, v.z);
       v.group.rotation.y = v.facing;
-      if (f && (f.moving || f.leap)) v.runT = 0.15; else v.runT = (v.runT || 0) - dt;
+      if (f && f.moving) v.runT = 0.15; else v.runT = (v.runT || 0) - dt;
       if (!v.char.dead) v.char.setBase(v.runT > 0 ? 'run' : 'idle');
       v.char.update(dt);
 

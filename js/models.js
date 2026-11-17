@@ -77,7 +77,6 @@ export function createCharacter(champId) {
   const model = SkeletonUtils.clone(src);
   model.scale.setScalar(src.userData.scale);
   const show = new Set(look.show);
-  const originColor = new THREE.Color(ORIGINS[c.origin].color);
   const materials = [];
   model.traverse(o => {
     if (!o.isMesh) return;
@@ -86,16 +85,60 @@ export function createCharacter(champId) {
     if (PROPS.has(o.name) && !show.has(o.name) && !ALWAYS.has(o.name)) { o.visible = false; return; }
     // Per-instance materials so hit flashes don't bleed between units.
     o.material = o.material.clone();
-    // Origin colour on capes and hats so Ember / Frost / Storm read at a glance, plus a light overall tint.
-    if (/Cape|Hat$/.test(o.name)) {
-      o.material.map = null;
-      o.material.color.copy(originColor).multiplyScalar(0.85);
-    } else {
-      o.material.color.lerp(originColor, 0.14);
-    }
+    // Repaint the clothing in the origin's colour (Ember / Frost / Storm).
+    if (o.material.map) o.material.map = originTexture(o.material.map, c.origin);
     materials.push(o.material);
   });
   return new Character(model, materials, c.cls, champId);
+}
+
+// ---------- Origin recolouring ----------
+// KayKit textures are palettes of colour swatches. We rotate the hue of every saturated swatch
+// (cloth, capes, hats, trims) to the origin hue and tint greys/metal, leaving skin, leather and gold alone.
+const ORIGIN_HUE = { ember: 8, frost: 198, storm: 272 };
+const texCache = new Map();
+function originTexture(tex, origin) {
+  const key = tex.uuid + origin;
+  if (texCache.has(key)) return texCache.get(key);
+  const img = tex.image;
+  const cv = document.createElement('canvas');
+  cv.width = img.width; cv.height = img.height;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, cv.width, cv.height);
+  const px = data.data;
+  const target = ORIGIN_HUE[origin] / 360;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+    if (l < 0.13 || l > 0.93) continue;            // eyes, outlines, highlights
+    if (d < 0.06) {                                // greys and metals: faction-tinted armour
+      const [nr, ng, nb] = hsl2rgb(target, 0.36, l);
+      px[i] = nr; px[i + 1] = ng; px[i + 2] = nb;
+      continue;
+    }
+    const sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    const deg = h * 360;
+    if (deg >= 12 && deg <= 58) continue;          // skin, leather, wood, gold
+    const s2 = sat < 0.3 ? Math.max(sat, 0.42) : Math.max(sat, 0.62);
+    const [nr, ng, nb] = hsl2rgb(target, s2, l);
+    px[i] = nr; px[i + 1] = ng; px[i + 2] = nb;
+  }
+  ctx.putImageData(data, 0, 0);
+  const out = tex.clone();
+  out.image = cv;
+  out.needsUpdate = true;
+  texCache.set(key, out);
+  return out;
+}
+function hsl2rgb(h, s, l) {
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = (t) => { t = (t + 1) % 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 0.5) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; };
+  return [f(h + 1 / 3), f(h), f(h - 1 / 3)].map(v => Math.round(v * 255));
 }
 
 export class Character {

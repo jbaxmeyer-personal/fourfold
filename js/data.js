@@ -18,7 +18,7 @@ export const CLASSES = {
   assassin: {
     name: 'Assassin', icon: '🗡️', role: 'Diver',
     thresholds: [2, 3],
-    desc: 'Innate: leap to the enemy backline when combat starts. Bonus: crit chance and crit damage.',
+    desc: 'Innate: run past the frontline to hunt the enemy backline. Bonus: crit chance and crit damage.',
     tiers: ['+20% crit, +30% crit dmg', '+45% crit, +60% crit dmg'],
     values: [[0.2, 0.3], [0.45, 0.6]],
   },
@@ -100,7 +100,7 @@ export const CHAMPS = [
     ability: 'Inferno Cleave', desc: 'Cleaves the target for 320% AD and heals for 40% of the damage.' },
   // Assassins
   { id: 'flicker', name: 'Flicker', cls: 'assassin', origin: 'storm', cost: 1,
-    ability: 'Blink Strike', desc: 'Blinks to the lowest-HP enemy and strikes for 250% AD.' },
+    ability: 'Shadow Strike', desc: 'Strikes for 250% AD. Refunds half its mana on a kill.' },
   { id: 'ashblade', name: 'Ashblade', cls: 'assassin', origin: 'ember', cost: 2,
     ability: 'Execute', desc: 'Strikes for 300% AD. Double damage against targets below 40% HP.' },
   { id: 'shiver', name: 'Shiver', cls: 'assassin', origin: 'frost', cost: 3,
