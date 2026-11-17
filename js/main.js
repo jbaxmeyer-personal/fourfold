@@ -188,8 +188,7 @@ function moveTo(from, toSel) {
 
 function startFight() {
   if (phase !== 'plan') return;
-  game.autoFill();
-  if (!game.boardCount()) { toast('Buy a champion first'); return; }
+  if (!game.boardCount()) { toast(game.bench.some(Boolean) ? 'Drag a champion onto the board first' : 'Buy a champion first'); return; }
   selected = null;
   renderAll();
   phase = 'combat';
