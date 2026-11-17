@@ -45,14 +45,19 @@ export class Game {
   rollShop() {
     const r = this.rng(1000 + this.rollCount++);
     const odds = shopOdds(this.fight);
+    const done = this.maxedIds();
     this.shop = [];
     for (let i = 0; i < 5; i++) {
       let x = r(), cost = 1;
       if (x < odds[0]) cost = 1; else if (x < odds[0] + odds[1]) cost = 2; else cost = 3;
-      const pool = CHAMPS.filter(c => c.cost === cost);
-      this.shop.push(pool[Math.floor(r() * pool.length)].id);
+      let pool = CHAMPS.filter(c => c.cost === cost && !done.has(c.id));
+      if (!pool.length) pool = CHAMPS.filter(c => !done.has(c.id));
+      this.shop.push(pool.length ? pool[Math.floor(r() * pool.length)].id : null);
     }
   }
+
+  // Champions the player already owns at 3 stars never show up in the shop again.
+  maxedIds() { return new Set(this.allUnits().filter(u => u.star >= 3).map(u => u.id)); }
 
   reroll() {
     if (this.gold < REROLL_COST) return false;
@@ -89,6 +94,7 @@ export class Game {
     else this._pendingUnit = unit; // merge will absorb it
     const merged = this.checkMerges(unit);
     this._pendingUnit = null;
+    if (merged && merged.star >= 3) this.shop = this.shop.map(s => (s === merged.id ? null : s));
     return { unit, merged };
   }
 
