@@ -102,11 +102,16 @@ export class Battle {
       if (!foes.length) continue;
       const back = foes.reduce((a, b) => (Math.abs(b.z) > Math.abs(a.z) ? b : a));
       const dir = f.side === 'player' ? -1 : 1;
-      f.x = back.x + (Math.random() - 0.5) * 0.6;
-      f.z = back.z + dir * 0.9;
+      this.leap(f, back.x + (Math.random() - 0.5) * 0.6, back.z + dir * 0.9, 0.3 + Math.random() * 0.2);
       f.target = back;
-      this.emit({ type: 'leap', uid: f.uid });
     }
+  }
+
+  // Jump through the air to a point over `dur` seconds (after an optional wind-up delay).
+  leap(f, tx, tz, delay = 0, dur, onLand) {
+    const dist = Math.hypot(tx - f.x, tz - f.z);
+    f.leap = { fx: f.x, fz: f.z, tx, tz, t: -delay, dur: dur || Math.max(0.35, dist / 7), onLand };
+    this.emit({ type: 'leap', uid: f.uid });
   }
 
   step(dt) {
@@ -121,6 +126,18 @@ export class Battle {
       if (f.chillT > 0) { f.chillT -= dt; if (f.chillT <= 0) f.chill = 0; }
       if (f.buffT > 0) { f.buffT -= dt; if (f.buffT <= 0) f.buffAs = 0; }
       if (f.tauntT > 0) { f.tauntT -= dt; if (f.tauntT <= 0) f.tauntBy = null; }
+      if (f.leap) {
+        const L = f.leap;
+        L.t += dt;
+        if (L.t > 0) {
+          const p = Math.min(1, L.t / L.dur);
+          f.x = L.fx + (L.tx - L.fx) * p;
+          f.z = L.fz + (L.tz - L.fz) * p;
+          f.leapP = p;
+          if (p >= 1) { f.leap = null; f.leapP = 0; if (L.onLand) L.onLand(); }
+        }
+        continue;
+      }
       f.atkCd -= dt;
       if (f.castLock > 0) { f.castLock -= dt; continue; }
       if (f.stunT > 0) { f.stunT -= dt; continue; }
@@ -160,7 +177,7 @@ export class Battle {
     }
 
     // Separation so units don't stack.
-    const alive = this.units.filter(u => u.alive);
+    const alive = this.units.filter(u => u.alive && !u.leap);
     for (let i = 0; i < alive.length; i++) {
       for (let j = i + 1; j < alive.length; j++) {
         const a = alive[i], b = alive[j];
@@ -288,11 +305,12 @@ export const ABILITIES = {
     const foes = b.enemies(f);
     if (!foes.length) return;
     const low = foes.reduce((a, c) => (c.hp < a.hp ? c : a));
-    f.x = low.x + (Math.random() - 0.5) * 0.4; f.z = low.z + (f.side === 'player' ? -0.9 : 0.9);
     f.target = low;
-    b.emit({ type: 'leap', uid: f.uid });
-    b.damage(f, low, f.ad * 2.5, 'phys', { ability: true, canCrit: true });
-    fx(b, { kind: 'burst', uid: low.uid, color: 0xb78cff });
+    b.leap(f, low.x + (Math.random() - 0.5) * 0.4, low.z + (f.side === 'player' ? -0.9 : 0.9), 0, undefined, () => {
+      if (!f.alive || !low.alive) return;
+      b.damage(f, low, f.ad * 2.5, 'phys', { ability: true, canCrit: true });
+      fx(b, { kind: 'burst', uid: low.uid, color: 0xb78cff });
+    });
   },
   ashblade(f, b, t) {
     const mult = t.hp / t.maxHp < 0.4 ? 6 : 3;

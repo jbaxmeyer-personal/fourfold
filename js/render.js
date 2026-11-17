@@ -336,7 +336,7 @@ export class Renderer {
         break;
       case 'heal': if (v) this.floatText(v, '+' + e.amount, 'heal'); break;
       case 'shield': if (v) this.floatText(v, '◈' + e.amount, 'shield'); break;
-      case 'leap': if (v) { v.jump = 0.45; v.x = v.combat.x; v.z = v.combat.z; } break;
+      case 'leap': break;
       case 'cast': if (v) this.floatText(v, e.name, 'cast'); break;
       case 'death': if (v) { v.alive = false; v.dead = 0.6; } break;
       case 'fx': this.spawnFx(e); break;
@@ -447,7 +447,7 @@ export class Renderer {
         lx = Math.sin(v.facing) * p; lz = Math.cos(v.facing) * p;
         v.lunge -= dt;
       }
-      if (v.jump > 0) { y += Math.sin((v.jump / 0.45) * Math.PI) * 1.6; v.jump -= dt; }
+      if (f && f.leap && f.leapP > 0) y += Math.sin(f.leapP * Math.PI) * 1.8;
       v.group.position.set(v.x + lx, y, v.z + lz);
       v.group.rotation.y = v.facing;
       const body = v.model.userData.body;
