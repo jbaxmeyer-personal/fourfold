@@ -95,7 +95,7 @@ function renderShop() {
   const el = $('#shop');
   const owned = new Set(game.allUnits().map(u => u.id));
   el.innerHTML = game.shop.map((id, i) => {
-    if (!id) return `<div class="card empty"></div>`;
+    if (!id) return `<div class="card empty"><div class="ph"></div><div class="nm">&nbsp;</div><div class="tr">&nbsp;</div></div>`;
     const c = CHAMP_BY_ID[id];
     const poor = game.gold < c.cost ? ' poor' : '';
     return `<div class="card c${c.cost} o-${c.origin}${poor}${owned.has(id) ? ' owned' : ''}" data-shop="${i}">

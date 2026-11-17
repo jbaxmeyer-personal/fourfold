@@ -5,7 +5,8 @@ import { NODES, NODE_INDEX, ADJ, HOPS } from './layout.js';
 import { Game } from './game.js';
 
 const RUN_SPEED = 2.6;      // world units per second (a hex is ~1.73)
-const ASSASSIN_SPEED = 3.4;
+const ASSASSIN_SPEED = 4.4;
+const BACKLINE = new Set(['mage', 'ranger', 'support']);
 const TIME_LIMIT = 45;
 const OVERTIME = 25;        // after this, damage ramps up and healing falls off
 const PROJ_SPEED = 13;
@@ -118,14 +119,7 @@ export class Battle {
 
   start() {
     this.started = true;
-    // Assassins run for the enemy backline.
-    for (const f of this.units) {
-      if (f.cls !== 'assassin') continue;
-      const foes = this.enemies(f);
-      if (!foes.length) continue;
-      f.target = foes.reduce((a, b) => (Math.abs(b.z) > Math.abs(a.z) ? b : a));
-      f.diving = true;
-    }
+    // Assassins run for the enemy backline (handled in pickTarget).
   }
 
   kill(u) {
@@ -135,8 +129,18 @@ export class Battle {
     this.emit({ type: 'death', uid: u.uid });
   }
 
-  pickTarget(f) {
-    if (f.tauntBy && f.tauntBy.alive) { f.target = f.tauntBy; return; }
+  pickTarget(f, dt) {
+    if (f.distractT > 0) f.distractT -= dt;
+    if (f.tauntBy && f.tauntBy.alive) { f.target = f.tauntBy; f.diving = false; return; }
+    if (f.cls === 'assassin') {
+      // Hunt the backline (mages, rangers, supports) until every one of them is dead.
+      const backs = this.enemies(f).filter(e => BACKLINE.has(e.cls));
+      f.diving = backs.length > 0 && !(f.distractT > 0);
+      if (f.diving) {
+        if (!(f.target && f.target.alive && BACKLINE.has(f.target.cls))) f.target = this.nearest(f, backs);
+        return;
+      }
+    }
     if (f.cls === 'fighter') {
       // Peel: fighters hunt enemy assassins that have dived into their half.
       const mySide = f.side === 'player' ? 1 : -1;
@@ -156,7 +160,13 @@ export class Battle {
       f.blockedT += dt;
       // Stuck behind bodies for a while: switch to something reachable.
       if (f.blockedT > 1.2 && !(f.tauntBy && f.tauntBy.alive)) {
-        const reachable = this.enemies(f).filter(e => e !== t && ADJ[f.node].some(n => !this.occ[n] && HOPS[n][e.node] < HOPS[f.node][e.node]));
+        const canReach = (e) => e !== t && ADJ[f.node].some(n => !this.occ[n] && HOPS[n][e.node] < HOPS[f.node][e.node]);
+        let reachable = this.enemies(f).filter(canReach);
+        if (f.diving) {
+          const backs = reachable.filter(e => BACKLINE.has(e.cls));
+          if (backs.length) reachable = backs;
+          else if (reachable.length) f.distractT = 2;   // fully walled off: fight what's in reach for a bit
+        }
         if (reachable.length) f.target = this.nearest(f, reachable);
         f.blockedT = 0;
       }
@@ -202,12 +212,11 @@ export class Battle {
       if (f.castLock > 0) { f.castLock -= dt; continue; }
       if (f.stunT > 0) { f.stunT -= dt; continue; }
 
-      this.pickTarget(f);
+      this.pickTarget(f, dt);
       let t = f.target;
       if (!t) continue;
       let inRange = this.hops(f, t) <= f.range;
       // Don't walk past enemies: if something else is already in range, fight it instead.
-      if (f.diving && (!t.alive || inRange)) f.diving = false;
       if (!inRange && !f.diving && !(f.tauntBy && f.tauntBy.alive)) {
         const near = this.enemies(f).filter(e => this.hops(f, e) <= f.range);
         if (near.length) { t = f.target = this.nearest(f, near); inRange = true; }

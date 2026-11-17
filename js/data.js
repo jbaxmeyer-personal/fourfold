@@ -18,7 +18,7 @@ export const CLASSES = {
   assassin: {
     name: 'Assassin', icon: '🗡️', role: 'Diver',
     thresholds: [2, 3],
-    desc: 'Innate: run past the frontline to hunt the enemy backline. Bonus: crit chance and crit damage.',
+    desc: 'Innate: sprint past the frontline and hunt enemy Mages, Rangers and Supports until they are all dead. Bonus: crit chance and crit damage.',
     tiers: ['+20% crit, +30% crit dmg', '+45% crit, +60% crit dmg'],
     values: [[0.2, 0.3], [0.45, 0.6]],
   },
