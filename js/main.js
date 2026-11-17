@@ -44,7 +44,8 @@ function renderAll() {
   renderBench();
   renderShop();
   renderInfo();
-  syncScene();
+  // Never reset unit positions while a fight is running or its result is showing.
+  if (phase !== 'combat' && phase !== 'result') syncScene();
   $('#reroll').disabled = game.gold < REROLL_COST;
   $('#lock').classList.toggle('on', game.locked);
   $('#lock').textContent = game.locked ? '🔒' : '🔓';
@@ -201,6 +202,7 @@ function startFight() {
   phase = 'combat';
   app.classList.add('combat');
   battle = new Battle(game.board, game.enemy, game.buffs);
+  acc = 0;
   renderer.startBattle(battle);
   renderer.setHighlights(null);
   $('#speed').classList.remove('hidden');
@@ -436,7 +438,7 @@ const STEP = 1 / 30;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (phase === 'combat' && battle) {
+  if (phase === 'combat' && battle && !battle.over) {
     acc += dt * speed;
     while (acc >= STEP && !battle.over) {
       battle.step(STEP);
@@ -444,10 +446,11 @@ function frame(now) {
       for (const e of battle.events) renderer.onEvent(e);
       battle.events.length = 0;
     }
-    if (battle.over) {
-      endTimer += dt;
-      if (endTimer > 1.2) finishFight();
-    }
+    if (battle.over) acc = 0;
+  }
+  if (phase === 'combat' && battle && battle.over) {
+    endTimer += dt;
+    if (endTimer > 1.2) finishFight();
   }
   renderer.update(dt);
   requestAnimationFrame(frame);

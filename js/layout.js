@@ -2,7 +2,7 @@
 export const R = 1;                 // hex circumradius
 export const W = Math.sqrt(3) * R;  // hex width (flat-to-flat)
 export const ROWS = [4, 3, 4];      // row 0 = front line
-export const GAP = 1.35;            // distance from centre line to front row
+export const GAP = 1.5 * R;         // front rows sit one hex-row from the neutral middle row
 
 export function hexId(row, col) { return `${row}:${col}`; }
 export function parseHex(id) { const [r, c] = id.split(':').map(Number); return { row: r, col: c }; }
@@ -27,13 +27,11 @@ for (const side of ['player', 'enemy']) for (const id of HEX_IDS) {
   const p = hexPos(side, id);
   NODES.push({ i: NODES.length, side, hex: id, x: p.x, z: p.z, row: parseHex(id).row });
 }
+// Neutral grey middle row (3 hexes) that both teams walk across.
+export const MID_HEXES = [-1, 0, 1].map(k => ({ x: k * W, z: 0 }));
+MID_HEXES.forEach((p, k) => NODES.push({ i: NODES.length, side: 'neutral', hex: `n:${k}`, x: p.x, z: p.z, row: -1 }));
 export const NODE_INDEX = (side, hex) => NODES.findIndex(n => n.side === side && n.hex === hex);
-export const ADJ = NODES.map(a => NODES.filter(b => {
-  if (a === b) return false;
-  const d = Math.hypot(a.x - b.x, a.z - b.z);
-  if (a.side === b.side) return d <= W * 1.05;
-  return a.row === 0 && b.row === 0 && Math.abs(a.x - b.x) <= W * 1.05; // across the river (straight + diagonal)
-}).map(b => b.i));
+export const ADJ = NODES.map(a => NODES.filter(b => a !== b && Math.hypot(a.x - b.x, a.z - b.z) <= W * 1.05).map(b => b.i));
 export const HOPS = NODES.map(a => {
   const dist = NODES.map(() => Infinity);
   dist[a.i] = 0;

@@ -1,7 +1,7 @@
 // Three.js scene: board, low-poly champions, combat visuals, DOM overlays.
 import * as THREE from 'three';
 import { CHAMP_BY_ID, ORIGINS } from './data.js';
-import { R, HEX_IDS, hexPos, GAP } from './layout.js';
+import { R, HEX_IDS, hexPos, GAP, MID_HEXES } from './layout.js';
 import { createCharacter } from './models.js';
 
 export const TEAM_COLOR = { player: 0x3d9bff, enemy: 0xff4d5e };
@@ -61,9 +61,6 @@ export class Renderer {
     base.receiveShadow = true; base.castShadow = false;
     base.scale.z = 1.25;
     scene.add(base);
-    const river = mesh(new THREE.BoxGeometry(8.6, 0.05, 0.9), mat(0x1d2a4a, { emissive: 0x1a2c5a, emissiveIntensity: 0.6 }), 0, -0.05, 0);
-    river.receiveShadow = true;
-    scene.add(river);
 
     this.hexes = [];
     const geo = new THREE.CylinderGeometry(R * 0.94, R * 0.94, 0.16, 6);
@@ -82,6 +79,14 @@ export class Renderer {
         scene.add(h);
         this.hexes.push(h);
       }
+    }
+    // Neutral grey middle row.
+    for (const p of MID_HEXES) {
+      const h = new THREE.Mesh(geo, mat(0x4a4f5e));
+      h.position.set(p.x, 0, p.z);
+      h.receiveShadow = true;
+      h.add(new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({ color: 0x8a90a6, transparent: true, opacity: 0.5 })));
+      scene.add(h);
     }
     // Decorative low-poly rocks and crystals around the arena.
     const rng = (i) => { const x = Math.sin(i * 91.7) * 43758.5; return x - Math.floor(x); };

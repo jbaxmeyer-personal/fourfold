@@ -189,7 +189,10 @@ export class Battle {
     if (!this.started) this.start();
     this.time += dt;
 
-    for (const f of this.units) {
+    // Random action order each tick so neither team gets a built-in tempo edge.
+    const order = [...this.units];
+    for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    for (const f of order) {
       if (!f.alive) continue;
       if (f.shieldT > 0) { f.shieldT -= dt; if (f.shieldT <= 0) f.shield = 0; }
       if (f.chillT > 0) { f.chillT -= dt; if (f.chillT <= 0) f.chill = 0; }
