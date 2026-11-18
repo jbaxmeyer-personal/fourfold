@@ -22,7 +22,7 @@ const LOOK = {
   frostweaver: { model: 'mage', show: ['2H_Staff', 'Mage_Hat'] },
   tempest:     { model: 'mage', show: ['1H_Wand', 'Spellbook', 'Mage_Hat'] },
   sleet:       { model: 'rogue', show: ['2H_Crossbow'] },
-  bolt:        { model: 'rogue', show: ['1H_Crossbow', 'Knife_Offhand'] },
+  bolt:        { model: 'rogue', show: ['1H_Crossbow'] },
   flare:       { model: 'rogue', show: ['2H_Crossbow'] },
   spark:       { model: 'mage', show: ['2H_Staff'] },
   hearth:      { model: 'mage', show: ['2H_Staff'] },
