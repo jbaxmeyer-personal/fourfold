@@ -13,7 +13,7 @@ const LOOK = {
   hoarfrost:   { model: 'knight', show: ['1H_Sword', 'Badge_Shield'] },
   bulwark:     { model: 'knight', show: ['1H_Sword', 'Rectangle_Shield'] },
   icefang:     { model: 'barbarian', show: ['1H_Axe', '1H_Axe_Offhand'] },
-  gale:        { model: 'barbarian', show: ['2H_Axe'] },
+  gale:        { model: 'barbarian', show: ['2H_Axe', 'Barbarian_Hat'] },
   pyre:        { model: 'barbarian', show: ['2H_Axe', 'Barbarian_Hat'] },
   flicker:     { model: 'rogue_hooded', show: ['Knife', 'Knife_Offhand'] },
   ashblade:    { model: 'rogue_hooded', show: ['Knife', 'Knife_Offhand'] },
@@ -88,6 +88,8 @@ export function createCharacter(champId) {
     o.material = o.material.clone();
     // Repaint the clothing in the origin's colour (Ember / Frost / Storm).
     if (o.material.map) o.material.map = originTexture(o.material.map, c.origin);
+    // The barbarian's animal hat is grey fur, so dye it with the origin colour directly.
+    if (o.name === 'Barbarian_Hat') { o.material.map = null; o.material.color.set(ORIGINS[c.origin].color).multiplyScalar(0.75); }
     materials.push(o.material);
   });
   return new Character(model, materials, c.cls, champId);
