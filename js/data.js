@@ -187,7 +187,7 @@ export const EVENTS = {
   altar:    { name: 'Altar', icon: '🕯️', desc: 'Sacrifice one champion to raise another by one star.' },
   gamble:   { name: 'Gamble', icon: '🎲', desc: 'Pay 5 gold: 50% chance to win 12 gold.' },
   shrine:   { name: 'Shrine', icon: '⛩️', desc: 'Pay 6 gold for a random permanent team buff.' },
-  recruit:  { name: 'Recruit', icon: '🤝', desc: 'A free random champion joins your bench.' },
+  recruit:  { name: 'Recruit', icon: '🤝', desc: 'A free random 3-cost champion joins your bench.' },
 };
 
 // Hidden champion pairs: discovered the first time both are on the board together.

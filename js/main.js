@@ -645,7 +645,16 @@ $('#modal').addEventListener('click', (e) => {
     if (!res.ok) { toast(res.err || 'Can\'t do that'); return; }
     if (key === 'gamble') toast(res.win ? '🎲 You won 12 gold!' : '🎲 Nothing this time…');
     if (key === 'shrine') toast(`⛩️ ${BUFFS[res.buff].icon} ${BUFFS[res.buff].name} blessing!`);
-    if (key === 'recruit') { toast(`🤝 ${CHAMP_BY_ID[res.id].name} joins you`); if (res.merged) celebrate(res.merged); }
+    if (key === 'recruit') {
+      const c = CHAMP_BY_ID[res.id];
+      modal(`<div class="panel"><h2>🤝 ${c.name} joins you!</h2>
+        <div class="recruit"><img src="${thumbnail(c.id)}" alt=""><div><b>${c.name}</b><span>${CLASSES[c.cls].icon} ${CLASSES[c.cls].name} · ${ORIGINS[c.origin].icon} ${ORIGINS[c.origin].name} · ${c.cost}●</span>
+        <small><b>${c.ability}</b> — ${c.desc}</small></div></div>
+        <p>${res.merged ? `Upgraded to ${stars(res.merged.star)}!` : 'Added to your bench.'}</p>
+        <button class="btn primary" data-act="advance">Continue</button></div>`);
+      if (res.merged) celebrate(res.merged);
+      return;
+    }
     advance();
   }
   else if (act === 'continue-run') { game = Game.load(); selected = null; resetCombatUi(); advance(); }

@@ -253,3 +253,9 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 @keyframes slidein { 0% { transform: translateX(-30px); opacity: 0; } 12% { transform: none; opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 .tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 4px; vertical-align: 2px; font-weight: 700; }
 .pathcard .tag { font-size: 10px; }
+.recruit { display: flex; gap: 12px; align-items: center; text-align: left; background: #0b0e1c; border: 1px solid var(--c3); border-radius: 14px; padding: 10px; margin-top: 10px; }
+.recruit img { width: 90px; height: 90px; }
+.recruit b { display: block; font-size: 17px; }
+.recruit span { display: block; font-size: 12px; color: var(--dim); margin: 2px 0 6px; }
+.recruit small { font-size: 12px; color: var(--text); line-height: 1.35; }
+.recruit small b { display: inline; font-size: 12px; color: var(--gold); }

@@ -453,7 +453,11 @@ export class Game {
         return { ok: true, buff };
       }
       case 'recruit': {
-        const id = this.randomChamps(1, r)[0];
+        // Always a 3-cost champion you haven't maxed out.
+        const maxed = this.maxedIds();
+        let pool = CHAMPS.filter(c => c.cost === 3 && !maxed.has(c.id));
+        if (!pool.length) pool = CHAMPS.filter(c => !maxed.has(c.id));
+        const id = pool[Math.floor(r() * pool.length)].id;
         const res = this.gainUnit(id);
         if (res.ok) this.event = null;
         return { ...res, id };
