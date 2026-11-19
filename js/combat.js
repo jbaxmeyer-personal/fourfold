@@ -1,6 +1,6 @@
 // Auto-battle simulation on the hex graph, independent of rendering.
 // Units occupy one hex at a time, step hex-to-hex, and can body-block each other.
-import { CHAMP_BY_ID, CLASS_STATS, STAR_MULT, ABILITY_MULT, BUFFS, PAIRS } from './data.js';
+import { CHAMP_BY_ID, CLASS_STATS, STAR_MULT, ABILITY_MULT, BUFFS, PAIRS, ATTACK_ANIM } from './data.js';
 import { NODES, NODE_INDEX, ADJ, HOPS } from './layout.js';
 import { Game } from './game.js';
 
@@ -240,6 +240,20 @@ export class Battle {
       }
       f.moving = false;
       f.atkCd -= dt;
+      // Attack wind-up: the hit lands / projectile leaves when the animation gets there.
+      if (f.windup && f.stunT > 0) f.windup = null;   // stuns interrupt the swing
+      if (f.windup) {
+        f.windup.t -= dt;
+        if (f.windup.t <= 0) {
+          const t0 = f.windup.target;
+          f.windup = null;
+          if (t0.alive) {
+            if (f.melee) this.basicHit(f, t0);
+            else this.projectiles.push({ id: this.nextProj++, src: f, tgt: t0, x: f.x, z: f.z, kind: f.cls, side: f.side, onHit: () => this.basicHit(f, t0) });
+          }
+        }
+        continue;
+      }
       if (f.castLock > 0) { f.castLock -= dt; continue; }
       if (f.stunT > 0) { f.stunT -= dt; continue; }
 
@@ -270,8 +284,9 @@ export class Battle {
         const as = f.as * (1 + f.asBonus + f.buffAs) * f.asMul * (1 - f.chill);
         f.atkCd = 1 / Math.max(0.2, as);
         this.emit({ type: 'attack', uid: f.uid, tgt: t.uid, interval: f.atkCd });
-        if (f.melee) this.basicHit(f, t);
-        else this.projectiles.push({ id: this.nextProj++, src: f, tgt: t, x: f.x, z: f.z, kind: f.cls, side: f.side, onHit: () => this.basicHit(f, t) });
+        // Same squeeze the renderer applies: the clip plays in min(clip length, 90% of the attack interval).
+        const anim = ATTACK_ANIM[f.id] || ATTACK_ANIM[f.cls];
+        f.windup = { t: anim.release * Math.min(anim.dur, f.atkCd * 0.9), target: t };
       }
     }
 

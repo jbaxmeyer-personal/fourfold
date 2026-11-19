@@ -227,3 +227,16 @@ export const BUFFS = {
   bulwark:  { name: 'Ironskin', icon: '🪨', desc: '+12 armor and MR for your team', apply: (f, n) => { f.armor += 12 * n; f.mr += 12 * n; } },
   focus:    { name: 'Focus', icon: '🔷', desc: '+15 starting mana for your team', apply: (f, n) => { f.mana = Math.min(f.maxMana, f.mana + 15 * n); } },
 };
+
+// Basic-attack animation timing (from the KayKit clips): clip length and the fraction where the
+// weapon connects / the projectile leaves. Combat delays the hit or projectile to that moment.
+export const ATTACK_ANIM = {
+  tank:     { dur: 1.07, release: 0.55 },  // 1H chop
+  fighter:  { dur: 1.63, release: 0.5 },   // 2H chop
+  assassin: { dur: 1.6,  release: 0.35 },  // dual stab
+  mage:     { dur: 0.93, release: 0.3 },   // spellcast shoot
+  ranger:   { dur: 1.07, release: 0.35 },  // 2H crossbow
+  support:  { dur: 0.93, release: 0.3 },
+  icefang:  { dur: 1.07, release: 0.55 },
+  bolt:     { dur: 1.07, release: 0.3 },   // 1H crossbow
+};
