@@ -11,6 +11,7 @@ const TIME_LIMIT = 45;
 const OVERTIME = 25;        // after this, damage ramps up and healing falls off
 const PROJ_SPEED = 13;
 const MAGE_VS_FIGHTER = 1.25;
+export const COST_SCALE = [0, 1, 1.2, 1.32];
 
 function tierVal(traits, key) {
   const t = traits.find(t => t.key === key);
@@ -21,16 +22,17 @@ function tierVal(traits, key) {
 function makeFighter(u, side, hex, mult) {
   const c = CHAMP_BY_ID[u.id];
   const base = CLASS_STATS[c.cls];
-  const costScale = 1 + 0.15 * (c.cost - 1);
+  const costScale = COST_SCALE[c.cost];
   const sm = STAR_MULT[u.star];
   const node = NODE_INDEX(side, hex);
-  const hp = Math.round(base.hp * costScale * sm * mult);
+  const mod = c.mod || {};
+  const hp = Math.round(base.hp * costScale * sm * mult * (mod.hp || 1));
   return {
     uid: u.uid, id: u.id, star: u.star, side, champ: c, cls: c.cls, origin: c.origin,
     node, x: NODES[node].x, z: NODES[node].z, homeHex: hex,
     move: null, blockedT: 0, prevNode: -1,
     maxHp: hp, hp,
-    ad: base.ad * costScale * sm * mult,
+    ad: base.ad * costScale * sm * mult * (mod.ad || 1),
     as: base.as, asBonus: 0, asMul: 1,
     range: base.range, melee: base.range <= 1,
     armor: base.armor, mr: base.mr,
@@ -328,12 +330,12 @@ export const ABILITIES = {
   hoarfrost(f, b) {
     for (const e of b.within(f.x, f.z, 2.5, b.enemies(f))) {
       b.damage(f, e, 90 * f.abilityScale, 'magic', { ability: true });
-      e.stunT = Math.max(e.stunT, 1.5);
+      e.stunT = Math.max(e.stunT, 1.0);
     }
     fx(b, { kind: 'ring', x: f.x, z: f.z, r: 2.5, color: 0x6fd3ff });
   },
   bulwark(f, b) {
-    for (const a of b.within(f.x, f.z, 3.4, b.allies(f))) b.shieldUnit(a, 180 * f.abilityScale);
+    for (const a of b.within(f.x, f.z, 3.4, b.allies(f))) b.shieldUnit(a, 150 * f.abilityScale);
     for (const e of b.within(f.x, f.z, 3, b.enemies(f))) { e.tauntBy = f; e.tauntT = 2; e.target = f; }
     fx(b, { kind: 'ring', x: f.x, z: f.z, r: 3.4, color: 0xb78cff });
   },
@@ -343,16 +345,16 @@ export const ABILITIES = {
     fx(b, { kind: 'burst', uid: t.uid, color: 0x6fd3ff });
   },
   gale(f, b) {
-    for (const e of b.within(f.x, f.z, 2.3, b.enemies(f))) b.damage(f, e, f.ad * 1.6, 'phys', { ability: true });
+    for (const e of b.within(f.x, f.z, 2.3, b.enemies(f))) b.damage(f, e, f.ad * 1.9, 'phys', { ability: true });
     fx(b, { kind: 'ring', x: f.x, z: f.z, r: 2.3, color: 0xb78cff });
   },
   pyre(f, b, t) {
-    const d = b.damage(f, t, f.ad * 3.2, 'phys', { ability: true });
-    b.heal(f, f, d * 0.4);
+    const d = b.damage(f, t, f.ad * 2.8, 'phys', { ability: true });
+    b.heal(f, f, d * 0.3);
     fx(b, { kind: 'burst', uid: t.uid, color: 0xff6a3d });
   },
   flicker(f, b, t) {
-    const d = b.damage(f, t, f.ad * 2.5, 'phys', { ability: true, canCrit: true });
+    const d = b.damage(f, t, f.ad * 3, 'phys', { ability: true, canCrit: true });
     if (!t.alive) f.mana = Math.round(f.maxMana * 0.5);
     fx(b, { kind: 'burst', uid: t.uid, color: 0xb78cff });
     return d;
@@ -363,19 +365,19 @@ export const ABILITIES = {
     fx(b, { kind: 'burst', uid: t.uid, color: 0xff6a3d });
   },
   shiver(f, b, t) {
-    b.damage(f, t, f.ad * 4, 'phys', { ability: true, forceCrit: true });
-    t.stunT = Math.max(t.stunT, 1);
+    b.damage(f, t, f.ad * 3, 'phys', { ability: true, forceCrit: true });
+    t.stunT = Math.max(t.stunT, 0.75);
     fx(b, { kind: 'burst', uid: t.uid, color: 0x6fd3ff });
   },
   cinder(f, b, t) {
-    b.damage(f, t, 260 * f.abilityScale, 'magic', { ability: true });
-    for (const e of b.within(t.x, t.z, 1.8, b.enemies(f))) if (e !== t) b.damage(f, e, 130 * f.abilityScale, 'magic', { ability: true });
+    b.damage(f, t, 340 * f.abilityScale, 'magic', { ability: true });
+    for (const e of b.within(t.x, t.z, 1.8, b.enemies(f))) if (e !== t) b.damage(f, e, 150 * f.abilityScale, 'magic', { ability: true });
     fx(b, { kind: 'beam', from: f.uid, to: t.uid, color: 0xff6a3d });
     fx(b, { kind: 'ring', x: t.x, z: t.z, r: 1.8, color: 0xff6a3d });
   },
   frostweaver(f, b, t) {
     for (const e of b.within(t.x, t.z, 2.4, b.enemies(f))) {
-      b.damage(f, e, 170 * f.abilityScale, 'magic', { ability: true });
+      b.damage(f, e, 200 * f.abilityScale, 'magic', { ability: true });
       e.stunT = Math.max(e.stunT, 1);
     }
     fx(b, { kind: 'ring', x: t.x, z: t.z, r: 2.4, color: 0x6fd3ff });
@@ -396,31 +398,31 @@ export const ABILITIES = {
     fx(b, { kind: 'beam', from: f.uid, to: t.uid, color: 0x6fd3ff });
   },
   bolt(f, b) {
-    f.buffAs = 0.9; f.buffT = 4;
+    f.buffAs = 1.0; f.buffT = 5;
     fx(b, { kind: 'burst', uid: f.uid, color: 0xb78cff });
   },
   flare(f, b) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       const foes = b.enemies(f);
       if (!foes.length) break;
       const e = foes[Math.floor(Math.random() * foes.length)];
-      b.damage(f, e, f.ad * 1.3, 'phys', { ability: true, canCrit: true });
+      b.damage(f, e, f.ad * 1.25, 'phys', { ability: true, canCrit: true });
       fx(b, { kind: 'beam', from: f.uid, to: e.uid, color: 0xff6a3d });
     }
   },
   spark(f, b) {
     const allies = b.allies(f);
     const low = allies.reduce((a, c) => (c.hp / c.maxHp < a.hp / a.maxHp ? c : a));
-    b.shieldUnit(low, 220 * f.abilityScale);
-    if (low !== f) low.mana = Math.min(low.maxMana, low.mana + 20);
+    b.shieldUnit(low, 260 * f.abilityScale);
+    if (low !== f) low.mana = Math.min(low.maxMana, low.mana + 30);
     fx(b, { kind: 'beam', from: f.uid, to: low.uid, color: 0xb78cff });
   },
   hearth(f, b) {
-    for (const a of b.allies(f)) b.heal(f, a, 130 * f.abilityScale);
+    for (const a of b.allies(f)) b.heal(f, a, 180 * f.abilityScale);
     fx(b, { kind: 'ring', x: f.x, z: f.z, r: 6, color: 0x7dff9a });
   },
   aurora(f, b) {
-    for (const a of b.allies(f)) { b.heal(f, a, 110 * f.abilityScale); b.shieldUnit(a, 110 * f.abilityScale); }
+    for (const a of b.allies(f)) { b.heal(f, a, 90 * f.abilityScale); b.shieldUnit(a, 90 * f.abilityScale); }
     fx(b, { kind: 'ring', x: f.x, z: f.z, r: 6, color: 0x9ff0ff });
   },
 };

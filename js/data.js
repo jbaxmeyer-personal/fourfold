@@ -83,49 +83,50 @@ export const STAR_MULT = [0, 1, 1.8, 3.24];   // hp / ad
 export const ABILITY_MULT = [0, 1, 1.6, 2.6]; // flat ability values
 
 // 18 champions: every class x origin pair once. Each origin has two of each cost.
+// `mod` = per-champion balance multipliers (hp/ad) from the simulation pass.
 export const CHAMPS = [
   // Tanks
   { id: 'kiln', name: 'Kiln', cls: 'tank', origin: 'ember', cost: 1,
     ability: 'Molten Guard', desc: 'Gains a 250 shield and taunts nearby enemies for 2.5s.' },
-  { id: 'hoarfrost', name: 'Hoarfrost', cls: 'tank', origin: 'frost', cost: 2,
-    ability: 'Glacial Slam', desc: 'Slams the ground, dealing 90 magic damage and stunning nearby enemies for 1.5s.' },
-  { id: 'bulwark', name: 'Bulwark', cls: 'tank', origin: 'storm', cost: 3,
-    ability: 'Static Fortress', desc: 'Shields nearby allies for 180 and taunts nearby enemies for 2s.' },
+  { id: 'hoarfrost', mod: { hp: 0.86 }, name: 'Hoarfrost', cls: 'tank', origin: 'frost', cost: 2,
+    ability: 'Glacial Slam', desc: 'Slams the ground, dealing 90 magic damage and stunning nearby enemies for 1s.' },
+  { id: 'bulwark', mod: { hp: 0.92 }, name: 'Bulwark', cls: 'tank', origin: 'storm', cost: 3,
+    ability: 'Static Fortress', desc: 'Shields nearby allies for 150 and taunts nearby enemies for 2s.' },
   // Fighters
-  { id: 'icefang', name: 'Icefang', cls: 'fighter', origin: 'frost', cost: 1,
+  { id: 'icefang', mod: { hp: 1.08 }, name: 'Icefang', cls: 'fighter', origin: 'frost', cost: 1,
     ability: 'Frostbite', desc: 'Strikes for 240% AD and Chills the target (-40% AS) for 3s.' },
-  { id: 'gale', name: 'Gale', cls: 'fighter', origin: 'storm', cost: 2,
-    ability: 'Cyclone', desc: 'Spins, dealing 160% AD to all adjacent enemies.' },
-  { id: 'pyre', name: 'Pyre', cls: 'fighter', origin: 'ember', cost: 3,
-    ability: 'Inferno Cleave', desc: 'Cleaves the target for 320% AD and heals for 40% of the damage.' },
+  { id: 'gale', mod: { hp: 1.1 }, name: 'Gale', cls: 'fighter', origin: 'storm', cost: 2,
+    ability: 'Cyclone', desc: 'Spins, dealing 190% AD to all adjacent enemies.' },
+  { id: 'pyre', mod: { hp: 0.96 }, name: 'Pyre', cls: 'fighter', origin: 'ember', cost: 3,
+    ability: 'Inferno Cleave', desc: 'Cleaves the target for 280% AD and heals for 30% of the damage.' },
   // Assassins
-  { id: 'flicker', name: 'Flicker', cls: 'assassin', origin: 'storm', cost: 1,
-    ability: 'Shadow Strike', desc: 'Strikes for 250% AD. Refunds half its mana on a kill.' },
+  { id: 'flicker', mod: { hp: 1.22, ad: 1.15 }, name: 'Flicker', cls: 'assassin', origin: 'storm', cost: 1,
+    ability: 'Shadow Strike', desc: 'Strikes for 300% AD. Refunds half its mana on a kill.' },
   { id: 'ashblade', name: 'Ashblade', cls: 'assassin', origin: 'ember', cost: 2,
     ability: 'Execute', desc: 'Strikes for 300% AD. Double damage against targets below 40% HP.' },
-  { id: 'shiver', name: 'Shiver', cls: 'assassin', origin: 'frost', cost: 3,
-    ability: 'Shatter', desc: 'A guaranteed critical strike for 400% AD that stuns for 1s.' },
+  { id: 'shiver', mod: { hp: 0.88, ad: 0.9 }, name: 'Shiver', cls: 'assassin', origin: 'frost', cost: 3,
+    ability: 'Shatter', desc: 'A guaranteed critical strike for 300% AD that stuns for 0.75s.' },
   // Mages
-  { id: 'cinder', name: 'Cinder', cls: 'mage', origin: 'ember', cost: 1,
-    ability: 'Fireball', desc: 'Hurls a fireball for 260 magic damage; half damage splashes nearby.' },
+  { id: 'cinder', mod: { hp: 1.25 }, name: 'Cinder', cls: 'mage', origin: 'ember', cost: 1,
+    ability: 'Fireball', desc: 'Hurls a fireball for 340 magic damage; half damage splashes nearby.' },
   { id: 'frostweaver', name: 'Frostweaver', cls: 'mage', origin: 'frost', cost: 2,
-    ability: 'Blizzard', desc: 'Deals 170 magic damage around the target and stuns for 1s.' },
+    ability: 'Blizzard', desc: 'Deals 200 magic damage around the target and stuns for 1s.' },
   { id: 'tempest', name: 'Tempest', cls: 'mage', origin: 'storm', cost: 3,
     ability: 'Chain Lightning', desc: 'Lightning hits 4 enemies for 240 magic damage each.' },
   // Rangers
   { id: 'sleet', name: 'Sleet', cls: 'ranger', origin: 'frost', cost: 1,
     ability: 'Ice Arrow', desc: 'Fires an arrow for 260% AD that Chills the target for 3s.' },
   { id: 'bolt', name: 'Bolt', cls: 'ranger', origin: 'storm', cost: 2,
-    ability: 'Overcharge', desc: 'Gains +90% attack speed for 4s.' },
-  { id: 'flare', name: 'Flare', cls: 'ranger', origin: 'ember', cost: 3,
-    ability: 'Barrage', desc: 'Fires 5 arrows at random enemies for 130% AD each.' },
+    ability: 'Overcharge', desc: 'Gains +100% attack speed for 5s.' },
+  { id: 'flare', mod: { ad: 0.94 }, name: 'Flare', cls: 'ranger', origin: 'ember', cost: 3,
+    ability: 'Barrage', desc: 'Fires 4 arrows at random enemies for 125% AD each.' },
   // Supports
-  { id: 'spark', name: 'Spark', cls: 'support', origin: 'storm', cost: 1,
-    ability: 'Jolt Ward', desc: 'Shields the weakest ally for 220 and gives them 20 mana.' },
-  { id: 'hearth', name: 'Hearth', cls: 'support', origin: 'ember', cost: 2,
-    ability: 'Warmth', desc: 'Heals all allies for 130.' },
-  { id: 'aurora', name: 'Aurora', cls: 'support', origin: 'frost', cost: 3,
-    ability: 'Dawnlight', desc: 'Heals all allies for 110 and shields them for 110.' },
+  { id: 'spark', mod: { hp: 1.3, ad: 1.2 }, name: 'Spark', cls: 'support', origin: 'storm', cost: 1,
+    ability: 'Jolt Ward', desc: 'Shields the weakest ally for 260 and gives them 30 mana.' },
+  { id: 'hearth', mod: { hp: 1.12 }, name: 'Hearth', cls: 'support', origin: 'ember', cost: 2,
+    ability: 'Warmth', desc: 'Heals all allies for 180.' },
+  { id: 'aurora', mod: { hp: 0.9 }, name: 'Aurora', cls: 'support', origin: 'frost', cost: 3,
+    ability: 'Dawnlight', desc: 'Heals all allies for 90 and shields them for 90.' },
 ];
 
 export const CHAMP_BY_ID = Object.fromEntries(CHAMPS.map(c => [c.id, c]));

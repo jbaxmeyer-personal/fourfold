@@ -107,8 +107,8 @@ function renderShop() {
 
 function unitStats(u, mult = 1) {
   const c = CHAMP_BY_ID[u.id], b = CLASS_STATS[c.cls];
-  const cs = 1 + 0.15 * (c.cost - 1), sm = STAR_MULT[u.star];
-  return { hp: Math.round(b.hp * cs * sm * mult), ad: Math.round(b.ad * cs * sm * mult), as: b.as, range: b.range, armor: b.armor, mr: b.mr, mana: b.mana };
+  const cs = [0, 1, 1.2, 1.32][c.cost], sm = STAR_MULT[u.star], md = c.mod || {};
+  return { hp: Math.round(b.hp * cs * sm * mult * (md.hp || 1)), ad: Math.round(b.ad * cs * sm * mult * (md.ad || 1)), as: b.as, range: b.range, armor: b.armor, mr: b.mr, mana: b.mana };
 }
 
 function renderInfo() {
