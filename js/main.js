@@ -345,10 +345,11 @@ function showEvent() {
   const ev = game.event;
   const gold = `<p class="gainline">You have ${game.gold}●</p>`;
   if (ev.key === 'merchant') {
+    const owned = new Set(game.allUnits().map(u => u.id));
     const cards = ev.cards.map((id, i) => {
       if (!id) return `<div class="card empty"><div class="ph"></div><div class="nm">&nbsp;</div><div class="tr">&nbsp;</div></div>`;
       const c = CHAMP_BY_ID[id];
-      return `<div class="card c${c.cost} o-${c.origin}" data-merchant="${i}"><span class="cost">${game.merchantPrice(id)}●</span><img src="${thumbnail(id)}" alt="">
+      return `<div class="card c${c.cost} o-${c.origin}${owned.has(id) ? ' owned' : ''}${game.gold < game.merchantPrice(id) ? ' poor' : ''}" data-merchant="${i}"><span class="cost">${game.merchantPrice(id)}●</span><img src="${thumbnail(id)}" alt="">
         <div class="nm">${c.name}</div><div class="tr">${CLASSES[c.cls].icon}${ORIGINS[c.origin].icon}</div></div>`;
     }).join('');
     modal(`<div class="panel"><h2>🛒 Merchant</h2><p>Discounted champions. Tap to buy.</p>${gold}
