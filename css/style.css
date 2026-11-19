@@ -62,7 +62,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .ubar.player .hp { background: #3d9bff; } .ubar.enemy .hp { background: #ff4d6d; }
 .ubar .sh { background: #f2f4ff; }
 .ubar .mpb { height: 3px; margin-top: 1px; background: #000a; border-radius: 2px; overflow: hidden; }
-.ubar .mp { display: block; height: 100%; background: #5aa8ff; }
+.ubar .mp { display: block; height: 100%; background: #ffd34d; }
 .ubar.stunned .hpb { outline: 1px solid var(--gold); }
 .ftxt { position: absolute; transform: translate(-50%, 0); font-weight: 800; font-size: 13px; text-shadow: 0 1px 2px #000, 0 0 3px #000;
   animation: rise .9s ease-out forwards; white-space: nowrap; }
