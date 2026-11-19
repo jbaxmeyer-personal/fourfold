@@ -137,6 +137,33 @@ export class Renderer {
     cam.position.set(0, Math.sin(elev) * d, Math.cos(elev) * d).add(target);
     cam.lookAt(target);
     cam.updateProjectionMatrix();
+    this.camBase = cam.position.clone();
+    this.camTarget = target.clone();
+  }
+
+  // Juice: camera shake and a short focus nudge toward a point (final kill).
+  shake(amount) { this.shakeAmt = Math.max(this.shakeAmt || 0, amount); }
+  focus(x, z) { this.focusPt = new THREE.Vector3(x, 0.8, z); this.focusGoal = 1; }
+  resetFocus() { this.focusGoal = 0; }
+  updateCamera(dt) {
+    if (!this.camBase) return;
+    this.focusK = this.focusK || 0;
+    this.focusK += ((this.focusGoal || 0) - this.focusK) * Math.min(1, dt * 4);
+    const cam = this.camera;
+    const tgt = this.camTarget.clone();
+    const pos = this.camBase.clone();
+    if (this.focusPt && this.focusK > 0.001) {
+      const shift = this.focusPt.clone().sub(this.camTarget).multiplyScalar(0.35 * this.focusK);
+      tgt.add(shift); pos.add(shift);
+      pos.lerp(tgt, 0.14 * this.focusK); // zoom in a touch
+    }
+    if (this.shakeAmt > 0.002) {
+      pos.x += (Math.random() - 0.5) * this.shakeAmt;
+      pos.y += (Math.random() - 0.5) * this.shakeAmt;
+      this.shakeAmt *= Math.exp(-dt * 12);
+    } else this.shakeAmt = 0;
+    cam.position.copy(pos);
+    cam.lookAt(tgt);
   }
 
   // ---------- Units ----------
@@ -230,7 +257,12 @@ export class Renderer {
         break;
       case 'heal': if (v) this.floatText(v, '+' + e.amount, 'heal'); break;
       case 'shield': if (v) this.floatText(v, '◈' + e.amount, 'shield'); break;
-      case 'cast': if (v) { this.floatText(v, e.name, 'cast'); v.char.play('cast', 0.9); } break;
+      case 'cast': if (v) {
+        v.char.play('cast', 0.9);
+        const col = ORIGINS[CHAMP_BY_ID[v.id].origin].color;
+        this.spawnFx({ kind: 'ring', x: v.group.position.x, z: v.group.position.z, r: 1.3, color: col });
+        v.flash = 0.18;
+      } break;
       case 'death': if (v) { v.alive = false; v.dead = 2.2; v.char.die(); } break;
       case 'cheer': if (v) v.char.cheer(); break;
       case 'fx': this.spawnFx(e); break;
@@ -425,6 +457,7 @@ export class Renderer {
       return true;
     });
 
+    this.updateCamera(dt);
     this.renderer.render(this.scene, this.camera);
   }
 }

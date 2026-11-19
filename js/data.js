@@ -140,6 +140,7 @@ export function shopOdds(fight) {
 }
 
 export const TOTAL_FIGHTS = 12;
+export const EVENT_AFTER = [3, 6, 9];
 export const LIVES = 3;
 export const START_GOLD = 10;
 export const REROLL_COST = 2;
@@ -147,20 +148,60 @@ export const BENCH_SIZE = 6;
 export const MAX_BOARD = 4;
 
 // Gauntlet: stars for each enemy unit and a stat multiplier.
+// Base enemy strength per fight. Path choices can turn a fight into an elite (one star higher, +7% stats).
 export const ENCOUNTERS = [
   { type: 'normal', stars: [1, 1], mult: 1.0 },
   { type: 'normal', stars: [1, 1, 1], mult: 0.9 },
   { type: 'normal', stars: [1, 1, 1], mult: 1.0 },
-  { type: 'elite',  stars: [2, 2, 1], mult: 1.0 },
+  { type: 'normal', stars: [2, 1, 1], mult: 1.0 },
   { type: 'normal', stars: [2, 1, 1, 1], mult: 1.0 },
   { type: 'normal', stars: [2, 1, 1, 1], mult: 1.05 },
   { type: 'normal', stars: [2, 2, 1, 1], mult: 1.0 },
-  { type: 'elite',  stars: [2, 2, 1, 1], mult: 1.1 },
+  { type: 'normal', stars: [2, 2, 1, 1], mult: 1.05 },
   { type: 'normal', stars: [2, 2, 2, 1], mult: 1.0 },
   { type: 'normal', stars: [2, 2, 2, 1], mult: 1.08 },
   { type: 'normal', stars: [2, 2, 2, 2], mult: 1.0 },
   { type: 'boss',   stars: [3, 2, 2, 2], mult: 1.05 },
 ];
+
+// Endless mode keeps scaling past fight 12; a boss every 12 fights.
+export function endlessSpec(fight) {
+  const threes = Math.min(4, Math.floor((fight - 10) / 3));
+  const stars = [0, 1, 2, 3].map(i => (i < threes ? 3 : 2));
+  return { type: fight % 12 === 0 ? 'boss' : 'normal', stars, mult: 1.05 + 0.05 * (fight - 12) };
+}
+
+// Ascension: unlocked one level at a time by clearing the gauntlet. Effects stack.
+export const ASCENSIONS = [
+  { name: 'Standard', desc: 'The normal gauntlet.' },
+  { name: 'Ascension 1', desc: 'Enemies have +8% stats.' },
+  { name: 'Ascension 2', desc: 'Start with 7 gold instead of 10.' },
+  { name: 'Ascension 3', desc: 'Elite paths are more common and the boss brings two ★★★.' },
+  { name: 'Ascension 4', desc: 'Only 2 lives.' },
+  { name: 'Ascension 5', desc: 'Enemies have +15% stats and rerolls cost 3.' },
+];
+
+// Path events, offered after fights 3, 6 and 9 (every 3rd fight in Endless).
+export const EVENTS = {
+  merchant: { name: 'Merchant', icon: '🛒', desc: 'Five champions at a discount (1/1/2 gold) and a free reroll.' },
+  altar:    { name: 'Altar', icon: '🕯️', desc: 'Sacrifice one champion to raise another by one star.' },
+  gamble:   { name: 'Gamble', icon: '🎲', desc: 'Pay 5 gold: 50% chance to win 12 gold.' },
+  shrine:   { name: 'Shrine', icon: '⛩️', desc: 'Pay 6 gold for a random permanent team buff.' },
+  recruit:  { name: 'Recruit', icon: '🤝', desc: 'A free random champion joins your bench.' },
+};
+
+// Hidden champion pairs: discovered the first time both are on the board together.
+export const PAIRS = [
+  { key: 'forge',   a: 'kiln',     b: 'hearth',      name: 'Forge Bond',    desc: 'Kiln and Hearth start combat with a 200 shield.' },
+  { key: 'edge',    a: 'icefang',  b: 'shiver',      name: 'Frozen Edge',   desc: 'Shiver deals +40% damage to Chilled targets.' },
+  { key: 'front',   a: 'tempest',  b: 'bolt',        name: 'Storm Front',   desc: 'Tempest and Bolt start combat with full mana.' },
+  { key: 'flames',  a: 'cinder',   b: 'flare',       name: 'Twin Flames',   desc: 'Cinder and Flare deal +20% damage.' },
+  { key: 'wardens', a: 'hoarfrost', b: 'aurora',     name: 'Winter Wardens', desc: 'Hoarfrost and Aurora gain +30 armor and MR.' },
+  { key: 'pact',    a: 'flicker',  b: 'ashblade',    name: 'Shadow Pact',   desc: 'Flicker and Ashblade gain +25% attack speed.' },
+  { key: 'static',  a: 'bulwark',  b: 'spark',       name: 'Static Guard',  desc: 'Bulwark and Spark start with 40 extra mana.' },
+  { key: 'wind',    a: 'gale',     b: 'sleet',       name: 'Crosswind',     desc: 'Sleet gains +1 range; Gale gains +20% attack speed.' },
+];
+
 
 export const ENCOUNTER_NAMES = {
   ember: ['Ember Raiders', 'Ash Pack', 'Cinder Cult', 'Kindled Host'],

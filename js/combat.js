@@ -1,6 +1,6 @@
 // Auto-battle simulation on the hex graph, independent of rendering.
 // Units occupy one hex at a time, step hex-to-hex, and can body-block each other.
-import { CHAMP_BY_ID, CLASS_STATS, STAR_MULT, ABILITY_MULT, BUFFS } from './data.js';
+import { CHAMP_BY_ID, CLASS_STATS, STAR_MULT, ABILITY_MULT, BUFFS, PAIRS } from './data.js';
 import { NODES, NODE_INDEX, ADJ, HOPS } from './layout.js';
 import { Game } from './game.js';
 
@@ -45,8 +45,32 @@ function makeFighter(u, side, hex, mult) {
     tauntT: 0, tauntBy: null,
     atkCd: 0.2 + Math.random() * 0.3, castLock: 0,
     target: null, alive: true, facing: side === 'player' ? Math.PI : 0,
-    dealt: 0, healed: 0,
+    dealt: 0, healed: 0, taken: 0,
   };
+}
+
+// Hidden champion pairs. Returns the PAIRS active for a team and applies their effects.
+export function activePairs(ids) {
+  const set = new Set(ids);
+  return PAIRS.filter(p => set.has(p.a) && set.has(p.b));
+}
+function applyPairs(team) {
+  const pairs = activePairs(team.map(f => f.id));
+  const by = (id) => team.find(f => f.id === id);
+  for (const p of pairs) {
+    const A = by(p.a), B = by(p.b);
+    switch (p.key) {
+      case 'forge': for (const f of [A, B]) { f.shield += 200; f.shieldT = 99; } break;
+      case 'edge': B.vsChilled = 0.4; break;
+      case 'front': for (const f of [A, B]) f.mana = f.maxMana; break;
+      case 'flames': for (const f of [A, B]) f.dmgAmp += 0.2; break;
+      case 'wardens': for (const f of [A, B]) { f.armor += 30; f.mr += 30; } break;
+      case 'pact': for (const f of [A, B]) f.asBonus += 0.25; break;
+      case 'static': for (const f of [A, B]) f.mana = Math.min(f.maxMana, f.mana + 40); break;
+      case 'wind': B.range += 1; A.asBonus += 0.2; break;
+    }
+  }
+  return pairs;
 }
 
 function applyTraits(team, traits, enemyTeam) {
@@ -90,6 +114,8 @@ export class Battle {
     applyTraits(pUnits, this.playerTraits, eUnits);
     applyTraits(eUnits, this.enemyTraits, pUnits);
     applyBuffs(pUnits, buffs);
+    this.playerPairs = applyPairs(pUnits);
+    this.enemyPairs = applyPairs(eUnits);
     this.units = [...pUnits, ...eUnits];
     this.occ = NODES.map(() => null);
     for (const u of this.units) this.occ[u.node] = u;
@@ -232,7 +258,9 @@ export class Battle {
         f.castLock = 0.45;
         f.facing = Math.atan2(t.x - f.x, t.z - f.z);
         this.emit({ type: 'cast', uid: f.uid, name: f.champ.ability });
+        this.caster = f;
         ABILITIES[f.id](f, this, t);
+        this.caster = null;
         continue;
       }
       if (!inRange) { this.tryStep(f, t, dt); continue; }
@@ -278,6 +306,7 @@ export class Battle {
     let dmg = amount * (1 + src.dmgAmp) * this.overtimeAmp();
     if (opts.ability) dmg *= 1 + src.abilityAmp;
     if (opts.ability && src.cls === 'mage' && tgt.cls === 'fighter') dmg *= MAGE_VS_FIGHTER;
+    if (src.vsChilled && tgt.chill > 0) dmg *= 1 + src.vsChilled;
     let crit = false;
     if (opts.forceCrit || (opts.canCrit && Math.random() < src.crit)) { dmg *= src.critDmg; crit = true; }
     if (kind === 'phys') dmg *= 100 / (100 + tgt.armor);
@@ -287,10 +316,11 @@ export class Battle {
     if (tgt.shield > 0) { const ab = Math.min(tgt.shield, toHp); tgt.shield -= ab; toHp -= ab; }
     tgt.hp -= toHp;
     src.dealt += dmg;
+    tgt.taken += dmg;
     tgt.mana = Math.min(tgt.maxMana, tgt.mana + Math.min(8, dmg * 0.04));
     if (src.vamp > 0 && src.alive) this.heal(src, src, dmg * src.vamp, true);
-    this.emit({ type: 'dmg', uid: tgt.uid, amount: dmg, kind, crit });
-    if (tgt.hp <= 0) this.kill(tgt);
+    this.emit({ type: 'dmg', uid: tgt.uid, amount: dmg, kind, crit, src: src.uid });
+    if (tgt.hp <= 0) { this.kill(tgt); this.lastKill = { x: tgt.x, z: tgt.z, by: src.uid }; }
     return dmg;
   }
 
@@ -307,6 +337,7 @@ export class Battle {
     amount *= this.overtimeHeal();
     tgt.shield += Math.round(amount);
     tgt.shieldT = Math.max(tgt.shieldT, dur);
+    if (this.caster) this.caster.healed += Math.round(amount);
     this.emit({ type: 'shield', uid: tgt.uid, amount: Math.round(amount) });
   }
 
