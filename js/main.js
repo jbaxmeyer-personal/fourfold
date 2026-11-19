@@ -95,7 +95,7 @@ function renderTop() {
   }
   if (game.mode === 'endless') {
     const best = (Meta.load().endless[0] || {}).fight || 0;
-    $('#track').innerHTML = `<span class="best">Best: fight ${best}</span>`;
+    $('#track').innerHTML = `<span class="best">${best ? `Best: fight ${best}` : 'No record yet'}</span>`;
     return;
   }
   $('#track').innerHTML = ENCOUNTERS.map((e, i) => {
@@ -378,6 +378,7 @@ function showEvent() {
 function showEnd(result, stats) {
   const win = result.over === 'victory';
   const rec = Meta.recordRun(game, win);
+  if (rec.unlocked) titleAsc = rec.unlocked;
   let head;
   if (game.mode === 'endless') head = `<h2 class="lose">Run Over</h2><p>You reached <b>fight ${game.fight}</b> with ${game.wins} wins.</p>${rec.newBest ? '<p class="gainline">🏆 New endless record!</p>' : rec.rank ? `<p>#${rec.rank} on your board</p>` : ''}`;
   else if (win) head = `<h2 class="win">Gauntlet Cleared!</h2><p>You beat all 12 fights${game.asc ? ` on Ascension ${game.asc}` : ''}.</p>${rec.unlocked ? `<p class="gainline">⬆ Ascension ${rec.unlocked} unlocked!</p>` : ''}`;
@@ -630,7 +631,7 @@ $('#modal').addEventListener('click', (e) => {
   else if (act === 'asc-up') { titleAsc = Math.min(Meta.load().ascUnlocked, titleAsc + 1); titleScreen(); }
   else if (act === 'records') recordsScreen();
   else if (act === 'how') howTo();
-  else if (act === 'title') { game = new Game(); resetCombatUi(); syncScene(); titleScreen(); }
+  else if (act === 'title') { game = new Game(); resetCombatUi(); renderer.resetFocus(); syncScene(); renderTop(); renderTraits(); renderBench(); renderShop(); titleScreen(); }
   else if (act === 'advance') advance();
   else if (act === 'continue') backToPlan();
   else if (act === 'altar-reset') { game.event.sacrifice = null; showEvent(); }
