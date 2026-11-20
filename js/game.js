@@ -26,7 +26,7 @@ export class Game {
     if (saved) {
       Object.assign(this, saved);
       // Older saves could stack buffs without limit; clamp to the cap.
-      for (const k of Object.keys(this.buffs || {})) this.buffs[k] = Math.min(BUFF_CAP, this.buffs[k]);
+      for (const k of Object.keys(this.buffs || {})) if (BUFFS[k] && !BUFFS[k].uncapped) this.buffs[k] = Math.min(BUFF_CAP, this.buffs[k]);
     }
     else {
       this.mode = opts.mode || 'gauntlet';
@@ -326,7 +326,7 @@ export class Game {
     let buffs = null;
     if (enc.buffStacks > 0) {
       buffs = {};
-      const keys = Object.keys(BUFFS);
+      const keys = Object.keys(BUFFS).filter(k => !BUFFS[k].uncapped);
       for (let i = 0; i < enc.buffStacks; i++) { const k = keys[i % keys.length]; buffs[k] = (buffs[k] || 0) + 1; }
     }
     return { fight, type: enc.type, mult: enc.mult, theme, name, board, buffs };
@@ -456,14 +456,16 @@ export class Game {
         return { ok: true, win };
       }
       case 'shrine': {
-        if (this.gold < 6) return { ok: false, err: 'Need 6 gold' };
+        const price = this.shrinePrice();
+        if (this.gold < price) return { ok: false, err: `Need ${price} gold` };
         const keys = this.openBuffs();
-        if (!keys.length) return { ok: false, err: 'Every blessing is already maxed' };
-        this.gold -= 6;
+        this.gold -= price;
         const buff = keys[Math.floor(r() * keys.length)];
         this.buffs[buff] = (this.buffs[buff] || 0) + 1;
-        this.event = null;
-        return { ok: true, buff };
+        // Once you're buying Ascendant stacks, the shrine stays open (at a rising price) as a gold sink.
+        if (BUFFS[buff].uncapped) ev.bought = (ev.bought || 0) + 1;
+        else this.event = null;
+        return { ok: true, buff, price, again: BUFFS[buff].uncapped ? this.shrinePrice() : null };
       }
       case 'recruit': {
         // Always a 3-cost champion you haven't maxed out.
@@ -515,14 +517,24 @@ export class Game {
   }
 
   // Buffs that haven't hit the stack cap yet.
-  openBuffs() { return Object.keys(BUFFS).filter(k => (this.buffs[k] || 0) < BUFF_CAP); }
+  // Normal blessings until they're all at the cap, then only the uncapped Ascendant blessing.
+  openBuffs() {
+    const open = Object.keys(BUFFS).filter(k => !BUFFS[k].uncapped && (this.buffs[k] || 0) < BUFF_CAP);
+    return open.length ? open : Object.keys(BUFFS).filter(k => BUFFS[k].uncapped);
+  }
+  buffCapped(k) { return !BUFFS[k].uncapped && (this.buffs[k] || 0) >= BUFF_CAP; }
+  // Shrine price: 6 for normal blessings; Ascendant costs 6 + 4 per stack you already own (a gold sink with a curve).
+  shrinePrice() {
+    const asc = this.openBuffs().some(k => BUFFS[k].uncapped);
+    return asc ? 6 + 4 * (this.buffs.ascendant || 0) : 6;
+  }
 
   claimReward(kind) {
     const rw = this.reward;
     if (!rw) return { ok: false };
     if (kind === 'gold') this.gold += rw.gold;
     else if (kind === 'buff') {
-      if (!rw.buff || (this.buffs[rw.buff] || 0) >= BUFF_CAP) return { ok: false, err: 'That blessing is maxed' };
+      if (!rw.buff || this.buffCapped(rw.buff)) return { ok: false, err: 'That blessing is maxed' };
       this.buffs[rw.buff] = (this.buffs[rw.buff] || 0) + 1;
     }
     else if (kind === 'champ') {

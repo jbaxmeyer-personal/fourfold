@@ -287,3 +287,6 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 @keyframes flipT { 0% { transform: translateY(0) rotateY(0); } 40% { transform: translateY(-40px) rotateY(1080deg); } 100% { transform: translateY(0) rotateY(1980deg); } }
 .altres .arrow { background: none !important; border: 0 !important; width: auto !important; padding: 0 !important; box-shadow: none !important; }
 .ftxt.status { color: #ffb36b; font-size: 11px; background: #3a1f0acc; padding: 1px 6px; border-radius: 8px; }
+.rcard.asc { border-color: var(--gold) !important; background: #1d1a0c; }
+.trait { white-space: nowrap; }
+#traits { align-items: center; } #traits .empty { white-space: nowrap; }

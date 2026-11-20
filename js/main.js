@@ -113,7 +113,7 @@ function renderTraits() {
   const found = Meta.load().pairs;
   const pairs = activePairs(Object.values(game.board).map(u => u.id)).filter(p => found.includes(p.key)).map(p =>
     `<div class="trait pair" data-pair="${p.key}"><span class="ic">🔗</span>${p.name}</div>`).join('');
-  if (!traits.length) { el.innerHTML = buffs + '<div class="empty">Place champions on the board to activate traits</div>'; return; }
+  if (!traits.length) { el.innerHTML = buffs || '<div class="empty">Place champions on the board to activate traits</div>'; return; }
   el.innerHTML = buffs + pairs + traits.map(t => {
     const next = t.def.thresholds.find(x => x > t.count);
     const frac = next ? `${t.count}/${next}` : `${t.count}`;
@@ -312,7 +312,7 @@ function showReward() {
       <button class="rcard" data-reward="champ"><img src="${thumbnail(rw.champ)}" alt=""><b>${c.name}</b>
         <span>${CLASSES[c.cls].icon} ${ORIGINS[c.origin].icon} · ${c.cost}●</span><small>${owned ? `You own ${owned}` : 'Free champion'}</small></button>
       <button class="rcard" data-reward="gold"><div class="big">●</div><b>+${rw.gold} gold</b><span>Spend it now</span><small>&nbsp;</small></button>
-      ${b ? `<button class="rcard" data-reward="buff"><div class="big">${b.icon}</div><b>${b.name}</b><span>${b.desc}</span><small>${game.buffs[rw.buff] || 0}/3 stacks · this run</small></button>`
+      ${b ? `<button class="rcard ${b.uncapped ? 'asc' : ''}" data-reward="buff"><div class="big">${b.icon}</div><b>${b.name}</b><span>${b.desc}</span><small>${b.uncapped ? `×${game.buffs[rw.buff] || 0} · no limit` : `${game.buffs[rw.buff] || 0}/3 stacks · this run`}</small></button>`
         : `<button class="rcard" disabled><div class="big">✨</div><b>All maxed</b><span>Every blessing is at 3 stacks</span><small>&nbsp;</small></button>`}
     </div></div>`);
 }
@@ -371,7 +371,7 @@ function showEvent() {
       <button class="btn" data-act="${ev.sacrifice != null ? 'altar-reset' : 'end-event'}">${ev.sacrifice != null ? 'Back' : 'Leave'}</button></div>`);
   } else {
     const def = EVENTS[ev.key];
-    const cost = ev.key === 'gamble' ? 5 : ev.key === 'shrine' ? 6 : 0;
+    const cost = ev.key === 'gamble' ? 5 : ev.key === 'shrine' ? game.shrinePrice() : 0;
     modal(`<div class="panel"><h2>${def.icon} ${def.name}</h2><p>${def.desc}</p>${cost ? gold : ''}
       <button class="btn primary" data-act="do-event" ${cost && game.gold < cost ? 'disabled' : ''}>${ev.key === 'recruit' ? 'Recruit' : `Pay ${cost}●`}</button>
       <button class="btn" data-act="end-event">Leave</button></div>`);
@@ -680,8 +680,9 @@ $('#modal').addEventListener('click', (e) => {
       const b = BUFFS[res.buff];
       modal(`<div class="panel"><h2>⛩️ The shrine answers</h2>
         <div class="bigicon">${b.icon}</div><h2 class="win">${b.name} ×${game.buffs[res.buff]}</h2><p>${b.desc}. Lasts the rest of the run.</p>
-        <p class="gainline">−6● · you have ${game.gold}●</p>
-        <button class="btn primary" data-act="advance">Continue</button></div>`);
+        <p class="gainline">−${res.price}● · you have ${game.gold}●</p>
+        ${res.again ? `<button class="btn" data-act="do-event" ${game.gold < res.again ? 'disabled' : ''}>🌟 Another Ascendant (${res.again}●)</button>` : ''}
+        <button class="btn primary" data-act="${res.again ? 'end-event' : 'advance'}">Continue</button></div>`);
       return;
     }
     if (key === 'recruit') {

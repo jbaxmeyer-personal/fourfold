@@ -188,7 +188,7 @@ export const EVENTS = {
   merchant: { name: 'Merchant', icon: '🛒', desc: 'Five champions at a discount (1/1/2 gold) and a free reroll.' },
   altar:    { name: 'Altar', icon: '🕯️', desc: 'Sacrifice one champion to raise another by one star.' },
   gamble:   { name: 'Gamble', icon: '🎲', desc: 'Pay 5 gold: 50% chance to win 12 gold.' },
-  shrine:   { name: 'Shrine', icon: '⛩️', desc: 'Pay 6 gold for a random permanent team buff.' },
+  shrine:   { name: 'Shrine', icon: '⛩️', desc: 'Pay 6 gold for a random permanent team buff. Once every buff is maxed it sells Ascendant stacks — buy as many as you can afford.' },
   recruit:  { name: 'Recruit', icon: '🤝', desc: 'A free random 3-cost champion joins your bench.' },
 };
 
@@ -228,6 +228,9 @@ export const BUFFS = {
   haste:    { name: 'Haste', icon: '💨', desc: '+10% attack speed for your team', apply: (f, n) => { f.asBonus += 0.1 * n; } },
   bulwark:  { name: 'Ironskin', icon: '🪨', desc: '+12 armor and MR for your team', apply: (f, n) => { f.armor += 12 * n; f.mr += 12 * n; } },
   focus:    { name: 'Focus', icon: '🔷', desc: '+15 starting mana for your team', apply: (f, n) => { f.mana = Math.min(f.maxMana, f.mana + 15 * n); } },
+  // Only offered once every other blessing is at the cap. No stack limit.
+  ascendant: { name: 'Ascendant', icon: '🌟', uncapped: true, desc: '+3% HP, damage, attack speed, armor and MR for your team',
+    apply: (f, n) => { const k = 0.03 * n; const b = Math.round(f.maxHp * k); f.maxHp += b; f.hp += b; f.dmgAmp += k; f.asBonus += k; f.armor *= 1 + k; f.mr *= 1 + k; } },
 };
 
 // Basic-attack animation timing (from the KayKit clips): clip length and the fraction where the
