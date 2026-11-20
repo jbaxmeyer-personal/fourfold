@@ -265,6 +265,7 @@ export class Renderer {
       } break;
       case 'death': if (v) { v.alive = false; v.dead = 2.2; v.char.die(); } break;
       case 'cheer': if (v) v.char.cheer(); break;
+      case 'status': if (v) this.floatText(v, e.text, 'status'); break;
       case 'fx': this.spawnFx(e); break;
     }
   }

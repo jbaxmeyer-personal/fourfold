@@ -176,25 +176,38 @@ export class Battle {
     if (!f.target || !f.target.alive) f.target = this.nearest(f, this.enemies(f));
   }
 
-  // Step one hex toward the target if a free neighbour gets closer. Returns true if moving.
+  // Shortest route through free hexes to any hex within range of `t`. Returns the first step, or -1 if walled off.
+  firstStep(f, t) {
+    const goal = (n) => HOPS[n][t.node] <= f.range;
+    const prev = new Map([[f.node, -1]]);
+    const q = [f.node];
+    while (q.length) {
+      const c = q.shift();
+      // Prefer neighbours that head toward the target so ties break sensibly.
+      const nbrs = ADJ[c].filter(n => !this.occ[n] && !prev.has(n))
+        .sort((a, b) => HOPS[a][t.node] - HOPS[b][t.node] || Math.hypot(NODES[a].x - t.x, NODES[a].z - t.z) - Math.hypot(NODES[b].x - t.x, NODES[b].z - t.z));
+      for (const n of nbrs) {
+        prev.set(n, c);
+        if (goal(n)) { let s = n; while (prev.get(s) !== f.node) s = prev.get(s); return s; }
+        q.push(n);
+      }
+    }
+    return -1;
+  }
+
+  // Step one hex along the shortest free route toward the target. Returns true if moving.
   tryStep(f, t, dt) {
-    const cur = HOPS[f.node][t.node];
-    const free = ADJ[f.node].filter(n => !this.occ[n]);
-    let best = free.filter(n => HOPS[n][t.node] < cur);
-    if (!best.length && f.blockedT > 0.4) best = free.filter(n => HOPS[n][t.node] === cur && n !== f.prevNode);
-    if (!best.length) {
+    const to = this.firstStep(f, t);
+    if (to < 0) {
       f.blockedT += dt;
-      // Stuck behind bodies for a while (and not chasing a priority target): switch to something reachable.
+      // Walled off for a while (and not chasing a priority target): switch to an enemy we can reach.
       if (f.blockedT > 1.2 && !f.committed && !(f.tauntBy && f.tauntBy.alive)) {
-        const canReach = (e) => e !== t && ADJ[f.node].some(n => !this.occ[n] && HOPS[n][e.node] < HOPS[f.node][e.node]);
-        const reachable = this.enemies(f).filter(canReach);
+        const reachable = this.enemies(f).filter(e => e !== t && this.firstStep(f, e) >= 0);
         if (reachable.length) f.target = this.nearest(f, reachable);
         f.blockedT = 0;
       }
       return false;
     }
-    best.sort((a, b) => HOPS[a][t.node] - HOPS[b][t.node] || Math.hypot(NODES[a].x - t.x, NODES[a].z - t.z) - Math.hypot(NODES[b].x - t.x, NODES[b].z - t.z));
-    const to = best[0];
     this.occ[f.node] = null;
     this.occ[to] = f;
     const dist = Math.hypot(NODES[to].x - NODES[f.node].x, NODES[to].z - NODES[f.node].z);
@@ -371,7 +384,7 @@ const fx = (b, e) => b.emit({ type: 'fx', ...e });
 export const ABILITIES = {
   kiln(f, b) {
     b.shieldUnit(f, 250 * f.abilityScale);
-    for (const e of b.within(f.x, f.z, 2.8, b.enemies(f))) { e.tauntBy = f; e.tauntT = 2.5; e.target = f; }
+    for (const e of b.within(f.x, f.z, 2.8, b.enemies(f))) { e.tauntBy = f; e.tauntT = 2.5; e.target = f; b.emit({ type: 'status', uid: e.uid, text: 'Taunted!' }); }
     fx(b, { kind: 'ring', x: f.x, z: f.z, r: 2.8, color: 0xff6a3d });
   },
   hoarfrost(f, b) {
@@ -383,7 +396,7 @@ export const ABILITIES = {
   },
   bulwark(f, b) {
     for (const a of b.within(f.x, f.z, 3.4, b.allies(f))) b.shieldUnit(a, 150 * f.abilityScale);
-    for (const e of b.within(f.x, f.z, 3, b.enemies(f))) { e.tauntBy = f; e.tauntT = 2; e.target = f; }
+    for (const e of b.within(f.x, f.z, 3, b.enemies(f))) { e.tauntBy = f; e.tauntT = 2; e.target = f; b.emit({ type: 'status', uid: e.uid, text: 'Taunted!' }); }
     fx(b, { kind: 'ring', x: f.x, z: f.z, r: 3.4, color: 0xb78cff });
   },
   icefang(f, b, t) {
