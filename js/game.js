@@ -2,7 +2,7 @@
 import {
   CHAMPS, CHAMP_BY_ID, CLASSES, ORIGINS, shopOdds, ENCOUNTERS, ENCOUNTER_NAMES, BOSS_NAMES,
   TOTAL_FIGHTS, LIVES, START_GOLD, REROLL_COST, BENCH_SIZE, MAX_BOARD, ARCHETYPES, BUFFS,
-  endlessSpec, EVENTS, EVENT_AFTER, PAIRS,
+  endlessSpec, EVENTS, EVENT_AFTER, PAIRS, BUFF_CAP,
 } from './data.js';
 import { HEX_IDS, parseHex } from './layout.js';
 
@@ -23,7 +23,11 @@ export function mulberry32(seed) {
 export class Game {
   // opts: { mode: 'gauntlet' | 'daily' | 'endless', asc: 0-5, seed }
   constructor(saved, opts = {}) {
-    if (saved) { Object.assign(this, saved); }
+    if (saved) {
+      Object.assign(this, saved);
+      // Older saves could stack buffs without limit; clamp to the cap.
+      for (const k of Object.keys(this.buffs || {})) this.buffs[k] = Math.min(BUFF_CAP, this.buffs[k]);
+    }
     else {
       this.mode = opts.mode || 'gauntlet';
       this.asc = this.mode === 'gauntlet' ? (opts.asc || 0) : 0;
@@ -318,7 +322,14 @@ export class Game {
     const names = ENCOUNTER_NAMES[theme];
     let name = enc.type === 'boss' ? BOSS_NAMES[theme] : names[Math.floor(r() * names.length)];
     if (ARCHETYPES[arch].name && enc.type === 'normal') name += ` · ${ARCHETYPES[arch].name}`;
-    return { fight, type: enc.type, mult: enc.mult, theme, name, board };
+    // Endless: enemies carry their own buff stacks (spread across the buff types).
+    let buffs = null;
+    if (enc.buffStacks > 0) {
+      buffs = {};
+      const keys = Object.keys(BUFFS);
+      for (let i = 0; i < enc.buffStacks; i++) { const k = keys[i % keys.length]; buffs[k] = (buffs[k] || 0) + 1; }
+    }
+    return { fight, type: enc.type, mult: enc.mult, theme, name, board, buffs };
   }
 
   // Apply a combat result. Returns summary for the UI.
@@ -446,8 +457,9 @@ export class Game {
       }
       case 'shrine': {
         if (this.gold < 6) return { ok: false, err: 'Need 6 gold' };
+        const keys = this.openBuffs();
+        if (!keys.length) return { ok: false, err: 'Every blessing is already maxed' };
         this.gold -= 6;
-        const keys = Object.keys(BUFFS);
         const buff = keys[Math.floor(r() * keys.length)];
         this.buffs[buff] = (this.buffs[buff] || 0) + 1;
         this.event = null;
@@ -497,16 +509,22 @@ export class Game {
       champ = pool.length ? pool[Math.floor(r() * pool.length)].id : CHAMPS[0].id;
     }
     const gold = (big ? 6 : 3) + Math.ceil(this.fight / 3);
-    const keys = Object.keys(BUFFS);
-    const buff = keys[Math.floor(r() * keys.length)];
+    const keys = this.openBuffs();
+    const buff = keys.length ? keys[Math.floor(r() * keys.length)] : null;
     return { champ, gold, buff };
   }
+
+  // Buffs that haven't hit the stack cap yet.
+  openBuffs() { return Object.keys(BUFFS).filter(k => (this.buffs[k] || 0) < BUFF_CAP); }
 
   claimReward(kind) {
     const rw = this.reward;
     if (!rw) return { ok: false };
     if (kind === 'gold') this.gold += rw.gold;
-    else if (kind === 'buff') this.buffs[rw.buff] = (this.buffs[rw.buff] || 0) + 1;
+    else if (kind === 'buff') {
+      if (!rw.buff || (this.buffs[rw.buff] || 0) >= BUFF_CAP) return { ok: false, err: 'That blessing is maxed' };
+      this.buffs[rw.buff] = (this.buffs[rw.buff] || 0) + 1;
+    }
     else if (kind === 'champ') {
       const res = this.gainUnit(rw.champ);
       if (!res.ok) return res;

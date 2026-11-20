@@ -305,14 +305,15 @@ function advance() {
 
 function showReward() {
   const rw = game.reward;
-  const c = CHAMP_BY_ID[rw.champ], b = BUFFS[rw.buff];
+  const c = CHAMP_BY_ID[rw.champ], b = rw.buff ? BUFFS[rw.buff] : null;
   const owned = game.allUnits().filter(u => u.id === rw.champ).length;
   modal(`<div class="panel"><h2 class="win">Choose a reward</h2><p>Pick one.</p>
     <div class="rewards">
       <button class="rcard" data-reward="champ"><img src="${thumbnail(rw.champ)}" alt=""><b>${c.name}</b>
         <span>${CLASSES[c.cls].icon} ${ORIGINS[c.origin].icon} · ${c.cost}●</span><small>${owned ? `You own ${owned}` : 'Free champion'}</small></button>
       <button class="rcard" data-reward="gold"><div class="big">●</div><b>+${rw.gold} gold</b><span>Spend it now</span><small>&nbsp;</small></button>
-      <button class="rcard" data-reward="buff"><div class="big">${b.icon}</div><b>${b.name}</b><span>${b.desc}</span><small>Permanent this run</small></button>
+      ${b ? `<button class="rcard" data-reward="buff"><div class="big">${b.icon}</div><b>${b.name}</b><span>${b.desc}</span><small>${game.buffs[rw.buff] || 0}/3 stacks · this run</small></button>`
+        : `<button class="rcard" disabled><div class="big">✨</div><b>All maxed</b><span>Every blessing is at 3 stacks</span><small>&nbsp;</small></button>`}
     </div></div>`);
 }
 

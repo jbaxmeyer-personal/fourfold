@@ -166,10 +166,12 @@ export const ENCOUNTERS = [
 
 // Endless mode keeps scaling past fight 12; a boss every 12 fights.
 export function endlessSpec(fight) {
-  const threes = Math.min(4, Math.floor((fight - 10) / 3));
+  const threes = Math.min(4, Math.floor((fight - 10) / 4));
   const stars = [0, 1, 2, 3].map(i => (i < threes ? 3 : 2));
-  return { type: fight % 12 === 0 ? 'boss' : 'normal', stars, mult: 1.05 + 0.05 * (fight - 12) };
+  // Stats grow ~3.5% per fight (compounding), and enemies earn their own buff stacks every 4 fights.
+  return { type: fight % 12 === 0 ? 'boss' : 'normal', stars, mult: 1.05 * Math.pow(1.035, fight - 12), buffStacks: Math.floor((fight - 12) / 4) };
 }
+export const BUFF_CAP = 3;  // max stacks per team buff
 
 // Ascension: unlocked one level at a time by clearing the gauntlet. Effects stack.
 export const ASCENSIONS = [

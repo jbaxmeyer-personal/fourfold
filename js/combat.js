@@ -115,6 +115,7 @@ export class Battle {
     applyTraits(pUnits, this.playerTraits, eUnits);
     applyTraits(eUnits, this.enemyTraits, pUnits);
     applyBuffs(pUnits, buffs);
+    applyBuffs(eUnits, enemy.buffs);
     this.playerPairs = applyPairs(pUnits);
     this.enemyPairs = applyPairs(eUnits);
     this.units = [...pUnits, ...eUnits];
