@@ -157,23 +157,21 @@ export class Battle {
     this.emit({ type: 'death', uid: u.uid });
   }
 
-  pickTarget(f, dt) {
-    if (f.distractT > 0) f.distractT -= dt;
-    if (f.tauntBy && f.tauntBy.alive) { f.target = f.tauntBy; f.diving = false; return; }
-    if (f.cls === 'assassin') {
-      // Hunt the backline (mages, rangers, supports) until every one of them is dead.
-      const backs = this.enemies(f).filter(e => BACKLINE.has(e.cls));
-      f.diving = backs.length > 0 && !(f.distractT > 0);
-      if (f.diving) {
-        if (!(f.target && f.target.alive && BACKLINE.has(f.target.cls))) f.target = this.nearest(f, backs);
-        return;
-      }
-    }
-    if (f.cls === 'fighter') {
-      // Peel: fighters hunt enemy assassins that have dived into their half.
+  // Priority targets: assassins hunt the backline, fighters hunt assassins that dived into their half.
+  // f.committed means "keep chasing this even if something else is in reach".
+  pickTarget(f) {
+    f.committed = false;
+    if (f.tauntBy && f.tauntBy.alive) { f.target = f.tauntBy; return; }
+    let prio = null;
+    if (f.cls === 'assassin') prio = this.enemies(f).filter(e => BACKLINE.has(e.cls));
+    else if (f.cls === 'fighter') {
       const mySide = f.side === 'player' ? 1 : -1;
-      const divers = this.enemies(f).filter(e => e.cls === 'assassin' && e.z * mySide > 0);
-      if (divers.length && !(f.target && f.target.alive && divers.includes(f.target))) { f.target = this.nearest(f, divers); return; }
+      prio = this.enemies(f).filter(e => e.cls === 'assassin' && e.z * mySide > 0);
+    }
+    if (prio && prio.length) {
+      if (!(f.target && f.target.alive && prio.includes(f.target))) f.target = this.nearest(f, prio);
+      f.committed = true;
+      return;
     }
     if (!f.target || !f.target.alive) f.target = this.nearest(f, this.enemies(f));
   }
@@ -186,15 +184,10 @@ export class Battle {
     if (!best.length && f.blockedT > 0.4) best = free.filter(n => HOPS[n][t.node] === cur && n !== f.prevNode);
     if (!best.length) {
       f.blockedT += dt;
-      // Stuck behind bodies for a while: switch to something reachable.
-      if (f.blockedT > 1.2 && !(f.tauntBy && f.tauntBy.alive)) {
+      // Stuck behind bodies for a while (and not chasing a priority target): switch to something reachable.
+      if (f.blockedT > 1.2 && !f.committed && !(f.tauntBy && f.tauntBy.alive)) {
         const canReach = (e) => e !== t && ADJ[f.node].some(n => !this.occ[n] && HOPS[n][e.node] < HOPS[f.node][e.node]);
-        let reachable = this.enemies(f).filter(canReach);
-        if (f.diving) {
-          const backs = reachable.filter(e => BACKLINE.has(e.cls));
-          if (backs.length) reachable = backs;
-          else if (reachable.length) f.distractT = 2;   // fully walled off: fight what's in reach for a bit
-        }
+        const reachable = this.enemies(f).filter(canReach);
         if (reachable.length) f.target = this.nearest(f, reachable);
         f.blockedT = 0;
       }
@@ -257,14 +250,24 @@ export class Battle {
       if (f.castLock > 0) { f.castLock -= dt; continue; }
       if (f.stunT > 0) { f.stunT -= dt; continue; }
 
-      this.pickTarget(f, dt);
+      this.pickTarget(f);
       let t = f.target;
       if (!t) continue;
       let inRange = this.hops(f, t) <= f.range;
+      const taunted = f.tauntBy && f.tauntBy.alive;
       // Don't walk past enemies: if something else is already in range, fight it instead.
-      if (!inRange && !f.diving && !(f.tauntBy && f.tauntBy.alive)) {
+      if (!inRange && !f.committed && !taunted) {
         const near = this.enemies(f).filter(e => this.hops(f, e) <= f.range);
         if (near.length) { t = f.target = this.nearest(f, near); inRange = true; }
+      }
+      // Chasing a priority target: keep moving toward it. If the way is blocked, hit whoever is in reach
+      // (usually the unit in the way) and keep trying to get through.
+      if (!inRange) {
+        if (this.tryStep(f, t, dt)) continue;
+        const near = this.enemies(f).filter(e => this.hops(f, e) <= f.range);
+        if (!near.length) continue;
+        t = this.nearest(f, near);
+        inRange = true;
       }
 
       if (f.mana >= f.maxMana && inRange) {
@@ -277,8 +280,6 @@ export class Battle {
         this.caster = null;
         continue;
       }
-      if (!inRange) { this.tryStep(f, t, dt); continue; }
-
       f.facing = Math.atan2(t.x - f.x, t.z - f.z);
       if (f.atkCd <= 0) {
         const as = f.as * (1 + f.asBonus + f.buffAs) * f.asMul * (1 - f.chill);
