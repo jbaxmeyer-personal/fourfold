@@ -259,3 +259,30 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 .recruit span { display: block; font-size: 12px; color: var(--dim); margin: 2px 0 6px; }
 .recruit small { font-size: 12px; color: var(--text); line-height: 1.35; }
 .recruit small b { display: inline; font-size: 12px; color: var(--gold); }
+#toast { z-index: 70; }
+.banner { z-index: 70; }
+.notice { background: #123328; border: 1px solid #4fe0b0; color: #c9ffe9; border-radius: 12px; padding: 8px 12px; font-size: 13px; font-weight: 600; margin: -6px 0 12px; }
+.evmsg { background: #0b0e1c; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; margin-top: 8px; color: #c9ffe9; }
+.evmsg .bad { color: #ff8095; }
+.altres { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0; }
+.altres > div { display: flex; flex-direction: column; align-items: center; background: #0b0e1c; border: 1px solid var(--line); border-radius: 12px; padding: 8px; width: 120px; }
+.altres img { width: 72px; height: 72px; }
+.altres .gone img { filter: grayscale(1) brightness(.6); }
+.altres .gone { border-color: #7a2c42; }
+.altres .up { border-color: var(--gold); box-shadow: 0 0 18px #ffd34d44; }
+.altres span { font-size: 13px; font-weight: 700; }
+.altres span b { color: var(--gold); }
+.altres small { font-size: 11px; color: var(--dim); }
+.altres .arrow { font-size: 26px; color: var(--gold); }
+.bigicon { font-size: 64px; margin: 6px 0; animation: pop 0.6s ease-out; }
+.coinwrap { perspective: 600px; height: 130px; display: flex; align-items: center; justify-content: center; margin: 10px 0; }
+.coin { position: relative; width: 110px; height: 110px; transform-style: preserve-3d; }
+.coin .face { position: absolute; inset: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 40px;
+  backface-visibility: hidden; background: radial-gradient(circle at 35% 30%, #ffe98a, #e0a800 70%); border: 4px solid #b8860b; box-shadow: inset 0 0 12px #0004; }
+.coin .face small { font-size: 11px; font-weight: 800; color: #5a3d00; letter-spacing: 1px; }
+.coin .face.t { transform: rotateY(180deg); background: radial-gradient(circle at 35% 30%, #e6e6e6, #9a9a9a 70%); border-color: #777; }
+.coin.heads { animation: flipH 1.6s cubic-bezier(.2,.7,.3,1) forwards; }
+.coin.tails { animation: flipT 1.6s cubic-bezier(.2,.7,.3,1) forwards; }
+@keyframes flipH { 0% { transform: translateY(0) rotateY(0); } 40% { transform: translateY(-40px) rotateY(1080deg); } 100% { transform: translateY(0) rotateY(1800deg); } }
+@keyframes flipT { 0% { transform: translateY(0) rotateY(0); } 40% { transform: translateY(-40px) rotateY(1080deg); } 100% { transform: translateY(0) rotateY(1980deg); } }
+.altres .arrow { background: none !important; border: 0 !important; width: auto !important; padding: 0 !important; box-shadow: none !important; }

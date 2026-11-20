@@ -414,6 +414,7 @@ export class Game {
           if (!res.ok) return res;
           this.gold -= price;
           ev.cards[arg] = null;
+          ev.bought = (ev.bought || 0) + 1;
           return res;
         }
         if (action === 'reroll') {

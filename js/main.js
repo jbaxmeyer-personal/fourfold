@@ -353,6 +353,7 @@ function showEvent() {
         <div class="nm">${c.name}</div><div class="tr">${CLASSES[c.cls].icon}${ORIGINS[c.origin].icon}</div></div>`;
     }).join('');
     modal(`<div class="panel"><h2>🛒 Merchant</h2><p>Discounted champions. Tap to buy.</p>${gold}
+      ${ev.msg ? `<div class="evmsg">${ev.msg}</div>` : ''}
       <div class="shopgrid">${cards}</div>
       <button class="btn" data-act="m-reroll">⟳ Reroll ${ev.freeRerolls > 0 ? '(free)' : `(${game.rerollCost}●)`}</button>
       <button class="btn primary" data-act="end-event">Leave</button></div>`);
@@ -393,13 +394,20 @@ function showEnd(result, stats) {
 
 function backToPlan() {
   closeModal();
+  if (notice) { toast(notice.replace(/<[^>]+>/g, '')); notice = null; }
   renderer.resetFocus();
   phase = 'plan';
   resetCombatUi();
   renderAll();
 }
 
-function modal(html) { const m = $('#modal'); m.innerHTML = html; m.classList.remove('hidden'); }
+// A one-line confirmation shown at the top of the next pop-up (or as a toast if there isn't one).
+let notice = null;
+function modal(html) {
+  if (notice) html = html.replace(/(<div class="panel[^"]*">)/, `$1<div class="notice">${notice}</div>`);
+  const m = $('#modal'); m.innerHTML = html; m.classList.remove('hidden');
+  notice = null;
+}
 function closeModal() { $('#modal').classList.add('hidden'); }
 
 let titleAsc = null;
@@ -594,9 +602,12 @@ $('#modal').addEventListener('click', (e) => {
   }
   const rc = e.target.closest('[data-reward]');
   if (rc) {
-    const res = game.claimReward(rc.dataset.reward);
+    const kind = rc.dataset.reward, rw = { ...game.reward }, before = game.buffs[rw.buff] || 0;
+    const res = game.claimReward(kind);
     if (!res.ok) { toast(res.err || 'Can\'t take that'); return; }
-    if (res.merged) celebrate(res.merged);
+    if (kind === 'gold') notice = `✓ +${rw.gold}● gold — you have ${game.gold}●`;
+    else if (kind === 'buff') notice = `✓ ${BUFFS[rw.buff].icon} ${BUFFS[rw.buff].name} ×${before + 1} — ${BUFFS[rw.buff].desc}`;
+    else notice = `✓ ${CHAMP_BY_ID[rw.champ].name} ${res.merged ? `upgraded to ${stars(res.merged.star)}!` : 'added to your bench'}`;
     advance();
     return;
   }
@@ -606,9 +617,10 @@ $('#modal').addEventListener('click', (e) => {
   if (ec) { game.startEvent(ec.dataset.event); showEvent(); return; }
   const mc = e.target.closest('[data-merchant]');
   if (mc) {
+    const id = game.event.cards[+mc.dataset.merchant];
     const res = game.eventAction('buy', +mc.dataset.merchant);
-    if (!res.ok) toast(res.err || 'Can\'t buy that');
-    else if (res.merged) celebrate(res.merged);
+    game.event.msg = !res.ok ? `<span class="bad">✗ ${res.err || 'Can\'t buy that'}</span>`
+      : `✓ Bought ${CHAMP_BY_ID[id].name}${res.merged ? ` — upgraded to ${stars(res.merged.star)}!` : ''}`;
     showEvent();
     return;
   }
@@ -616,10 +628,17 @@ $('#modal').addEventListener('click', (e) => {
   if (al) {
     const uid = +al.dataset.altar, ev = game.event;
     if (ev.sacrifice == null) { ev.sacrifice = uid; showEvent(); return; }
+    const lost = game.allUnits().find(u => u.uid === ev.sacrifice);
+    const lostTxt = lost ? `${CHAMP_BY_ID[lost.id].name} ${stars(lost.star)}` : '';
+    const lostId = lost && lost.id;
     const res = game.eventAction('do', { sacrifice: ev.sacrifice, upgrade: uid });
     if (!res.ok) { toast(res.err); return; }
-    celebrate(res.upgraded);
-    advance();
+    const u = res.upgraded, c = CHAMP_BY_ID[u.id];
+    modal(`<div class="panel"><h2>🕯️ The altar accepts</h2>
+      <div class="altres"><div class="gone"><img src="${thumbnail(lostId)}" alt=""><span>${lostTxt}</span><small>sacrificed</small></div>
+      <div class="arrow">→</div>
+      <div class="up"><img src="${thumbnail(u.id)}" alt=""><span>${c.name} <b>${stars(u.star)}</b></span><small>raised to ${u.star} stars</small></div></div>
+      <button class="btn primary" data-act="advance">Continue</button></div>`);
     return;
   }
   const a = e.target.closest('[data-act]');
@@ -637,14 +656,33 @@ $('#modal').addEventListener('click', (e) => {
   else if (act === 'continue') backToPlan();
   else if (act === 'altar-reset') { game.event.sacrifice = null; showEvent(); }
   else if (act === 'skip-event') { game.event = null; advance(); }
-  else if (act === 'end-event') { game.event = null; advance(); }
-  else if (act === 'm-reroll') { const r = game.eventAction('reroll'); if (!r.ok) toast(r.err); showEvent(); }
+  else if (act === 'end-event') {
+    const ev = game.event;
+    if (ev && ev.key === 'merchant' && ev.bought) notice = `✓ Left the Merchant with ${ev.bought} new champion${ev.bought > 1 ? 's' : ''}`;
+    game.event = null; advance();
+  }
+  else if (act === 'm-reroll') { const r = game.eventAction('reroll'); game.event.msg = r.ok ? '✓ New champions' : `<span class="bad">✗ ${r.err}</span>`; showEvent(); }
   else if (act === 'do-event') {
     const key = game.event.key;
     const res = game.eventAction('do');
     if (!res.ok) { toast(res.err || 'Can\'t do that'); return; }
-    if (key === 'gamble') toast(res.win ? '🎲 You won 12 gold!' : '🎲 Nothing this time…');
-    if (key === 'shrine') toast(`⛩️ ${BUFFS[res.buff].icon} ${BUFFS[res.buff].name} blessing!`);
+    if (key === 'gamble') {
+      // Coin flip: heads wins. The result is decided already; the animation lands on it.
+      modal(`<div class="panel"><h2>🎲 Gamble</h2><p>Heads wins 12●. Tails, the house keeps your 5●.</p>
+        <div class="coinwrap"><div class="coin ${res.win ? 'heads' : 'tails'}"><div class="face h">👑<small>HEADS</small></div><div class="face t">💀<small>TAILS</small></div></div></div>
+        <div class="coinres hidden">${res.win ? `<h2 class="win">Heads — you win!</h2><p class="gainline">+12● · you have ${game.gold}●</p>` : `<h2 class="lose">Tails — you lose</h2><p>−5● · you have ${game.gold}●</p>`}
+        <button class="btn primary" data-act="advance">Continue</button></div></div>`);
+      setTimeout(() => { const el = document.querySelector('.coinres'); if (el) el.classList.remove('hidden'); }, 1700);
+      return;
+    }
+    if (key === 'shrine') {
+      const b = BUFFS[res.buff];
+      modal(`<div class="panel"><h2>⛩️ The shrine answers</h2>
+        <div class="bigicon">${b.icon}</div><h2 class="win">${b.name} ×${game.buffs[res.buff]}</h2><p>${b.desc}. Lasts the rest of the run.</p>
+        <p class="gainline">−6● · you have ${game.gold}●</p>
+        <button class="btn primary" data-act="advance">Continue</button></div>`);
+      return;
+    }
     if (key === 'recruit') {
       const c = CHAMP_BY_ID[res.id];
       modal(`<div class="panel"><h2>🤝 ${c.name} joins you!</h2>
