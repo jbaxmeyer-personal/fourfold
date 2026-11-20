@@ -7,6 +7,7 @@ import { Game } from './game.js';
 const RUN_SPEED = 2.6;      // world units per second (a hex is ~1.73)
 const ASSASSIN_SPEED = 4.4;
 const BACKLINE = new Set(['mage', 'ranger', 'support']);
+const MOVE_PRIORITY = { assassin: 0, fighter: 1, tank: 2 };
 const TIME_LIMIT = 45;
 const OVERTIME = 25;        // after this, damage ramps up and healing falls off
 const PROJ_SPEED = 13;
@@ -223,9 +224,11 @@ export class Battle {
     if (!this.started) this.start();
     this.time += dt;
 
-    // Random action order each tick so neither team gets a built-in tempo edge.
+    // Action order each tick: assassins first, then fighters, then tanks, then everyone else, so the
+    // faster divers win the race for contested hexes. Random within each group so neither team gets an edge.
     const order = [...this.units];
     for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+    order.sort((a, b) => (MOVE_PRIORITY[a.cls] ?? 3) - (MOVE_PRIORITY[b.cls] ?? 3));
     for (const f of order) {
       if (!f.alive) continue;
       if (f.shieldT > 0) { f.shieldT -= dt; if (f.shieldT <= 0) f.shield = 0; }
@@ -277,10 +280,15 @@ export class Battle {
       // (usually the unit in the way) and keep trying to get through.
       if (!inRange) {
         if (this.tryStep(f, t, dt)) continue;
+        // No route to the target right now. Hit whoever is in reach; if nobody is, go fight the
+        // nearest enemy we can reach. The priority target is re-checked every tick.
         const near = this.enemies(f).filter(e => this.hops(f, e) <= f.range);
-        if (!near.length) continue;
-        t = this.nearest(f, near);
-        inRange = true;
+        if (near.length) { t = this.nearest(f, near); inRange = true; }
+        else {
+          const alt = this.enemies(f).filter(e => e !== t && this.firstStep(f, e) >= 0);
+          if (alt.length) this.tryStep(f, this.nearest(f, alt), dt);
+          continue;
+        }
       }
 
       if (f.mana >= f.maxMana && inRange) {
